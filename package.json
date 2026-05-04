@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "data:build": "python data_pipeline/build_dashboard_data.py",
+    "data:scrape": "python data_pipeline/build_dashboard_data.py --scrape",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

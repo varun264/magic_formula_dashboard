@@ -1,43 +1,43 @@
 # Magic Formula Dashboard
 
-React + Vite dashboard for ranking Magic Formula candidates from CSV uploads.
+Automated React + Vite dashboard for monthly Magic Formula stock recommendations.
 
-## Run locally
+## Local dashboard
 
 ```bash
 npm install
+npm run data:build
 npm run dev
 ```
 
-## Build
+Open the local Vite URL and the dashboard will load `public/data/latest.json`.
+
+## Refresh data
+
+Use the bundled seed dataset:
 
 ```bash
-npm run build
+npm run data:build
 ```
 
-The production build is written to `dist/`.
+Scrape fresh Moneycontrol data:
 
-## Deploy to GitHub Pages
-
-This repo includes `.github/workflows/deploy-pages.yml`. After pushing to the `main` branch:
-
-1. Open the GitHub repository.
-2. Go to **Settings > Pages**.
-3. Set **Source** to **GitHub Actions**.
-4. Push to `main` or run the workflow manually from the **Actions** tab.
-
-The Vite build uses a relative asset base, so it works from a user/organization Pages site or a project Pages path.
-
-## CSV columns
-
-Fundamentals CSV:
-
-```text
-ticker,ebit,market_cap,total_debt,preferred_equity,minority_interest,cash,net_ppe,working_capital,sector,country
+```bash
+python -m pip install -r data_pipeline/requirements.txt
+npm run data:scrape
 ```
 
-Holdings CSV:
+Generated dashboard assets:
 
-```text
-ticker,buy_date,shares
-```
+- `public/data/latest.json`
+- `public/data/magic_formula_top50.csv`
+
+## GitHub Pages
+
+The workflow in `.github/workflows/deploy-pages.yml`:
+
+- builds seed dashboard data on every push to `main`
+- scrapes fresh Moneycontrol data on the 1st day of every month at 03:00 UTC
+- deploys the static dashboard to GitHub Pages
+
+After pushing to GitHub, open **Settings > Pages** and set **Source** to **GitHub Actions**.
