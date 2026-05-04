@@ -37,7 +37,7 @@ Generated dashboard assets:
 The workflow in `.github/workflows/deploy-pages.yml`:
 
 - builds seed dashboard data on every push to `main`
-- scrapes fresh Moneycontrol data on the 1st day of every month at 03:00 UTC
+- scrapes fresh Moneycontrol data on the 5th day of every month at 03:00 UTC
 - deploys the static dashboard to GitHub Pages
 
 After pushing to GitHub, open **Settings > Pages** and set **Source** to **GitHub Actions**.
