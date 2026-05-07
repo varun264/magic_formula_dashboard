@@ -7,6 +7,10 @@ type Recommendation = {
   sc_sector: string | null;
   market_cap_cr: number;
   previous_close: number;
+  pbit_per_share: number;
+  owner_earnings_per_share: number;
+  intrinsic_value: number;
+  margin_of_safety: number;
   enterprise_value_cr: number;
   earnings_yield: number;
   return_on_capital: number;
@@ -22,6 +26,12 @@ type DashboardData = {
   filters: {
     minimum_market_cap_rs: number;
     top_n: number;
+  };
+  valuation: {
+    method: string;
+    formula: string;
+    tax_rate: number;
+    required_earnings_yield: number;
   };
   counts: {
     raw_rows: number;
@@ -128,8 +138,19 @@ function App() {
       <section className="metric-grid">
         <Metric label="Top recommendations" value={data.counts.recommendation_rows} />
         <Metric label="Eligible universe" value={data.counts.ranked_rows} />
-        <Metric label="Raw rows scraped" value={data.counts.raw_rows} />
+        <Metric label="Required yield" value={pctFmt(data.valuation.required_earnings_yield)} />
         <Metric label="Min market cap" value={`Rs ${numFmt(data.filters.minimum_market_cap_rs / 1e7)} Cr`} />
+      </section>
+
+      <section className="panel valuation-panel">
+        <div>
+          <h2>Intrinsic Value Estimate</h2>
+          <p>
+            Estimated with earnings power value: PBIT/share after a {pctFmt(data.valuation.tax_rate)} tax assumption,
+            capitalized at a {pctFmt(data.valuation.required_earnings_yield)} required earnings yield.
+          </p>
+        </div>
+        <code>Intrinsic value = PBIT/share * (1 - tax rate) / required earnings yield</code>
       </section>
 
       <section className="panel">
@@ -158,16 +179,18 @@ function App() {
               <p>{row.sc_sector ?? "Sector unavailable"}</p>
               <div className="pick-stats">
                 <span>
-                  <strong>{pctFmt(row.earnings_yield)}</strong>
-                  EY
+                  <strong>Rs {numFmt(row.intrinsic_value, 2)}</strong>
+                  Intrinsic
                 </span>
                 <span>
-                  <strong>{pctFmt(row.return_on_capital)}</strong>
-                  ROC
+                  <strong className={row.margin_of_safety >= 0 ? "positive" : "negative"}>
+                    {pctFmt(row.margin_of_safety)}
+                  </strong>
+                  Margin
                 </span>
                 <span>
-                  <strong>Rs {numFmt(row.market_cap_cr)} Cr</strong>
-                  Mkt cap
+                  <strong>Rs {numFmt(row.previous_close, 2)}</strong>
+                  Close
                 </span>
               </div>
             </article>
@@ -207,6 +230,8 @@ function App() {
                 <th>Sector</th>
                 <th>EY</th>
                 <th>ROC</th>
+                <th>Intrinsic</th>
+                <th>Margin</th>
                 <th>EY Rank</th>
                 <th>ROC Rank</th>
                 <th>Combined</th>
@@ -218,7 +243,7 @@ function App() {
             <tbody>
               {allRows.length === 0 ? (
                 <tr>
-                  <td className="empty" colSpan={11}>
+                  <td className="empty" colSpan={13}>
                     No matching recommendations.
                   </td>
                 </tr>
@@ -230,6 +255,8 @@ function App() {
                     <td>{row.sc_sector ?? "-"}</td>
                     <td>{pctFmt(row.earnings_yield, 2)}</td>
                     <td>{pctFmt(row.return_on_capital, 2)}</td>
+                    <td>Rs {numFmt(row.intrinsic_value, 2)}</td>
+                    <td className={row.margin_of_safety >= 0 ? "positive" : "negative"}>{pctFmt(row.margin_of_safety, 1)}</td>
                     <td>{numFmt(row.ey_rank)}</td>
                     <td>{numFmt(row.roc_rank)}</td>
                     <td>{numFmt(row.combined_rank)}</td>

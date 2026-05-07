@@ -32,6 +32,27 @@ Generated dashboard assets:
 - `public/data/latest.json`
 - `public/data/magic_formula_top50.csv`
 
+## Intrinsic value estimate
+
+The dashboard displays a simple earnings-power intrinsic value estimate:
+
+```text
+intrinsic_value = PBIT/share * (1 - tax_rate) / required_earnings_yield
+margin_of_safety = intrinsic_value / previous_close - 1
+```
+
+Default assumptions:
+
+- `tax_rate`: `25%`
+- `required_earnings_yield`: `10%`
+
+These can be changed in workflow/environment variables:
+
+- `MF_VALUATION_TAX_RATE`
+- `MF_VALUATION_REQUIRED_EARNINGS_YIELD`
+
+This is a screen-level estimate, not a full DCF.
+
 ## GitHub Pages
 
 The workflow in `.github/workflows/deploy-pages.yml`:

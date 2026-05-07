@@ -177,6 +177,29 @@ button:disabled {
   font-size: 0.92rem;
 }
 
+.valuation-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.valuation-panel p {
+  max-width: 820px;
+  margin-bottom: 0;
+  color: #66758a;
+}
+
+.valuation-panel code {
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #f6f8fb;
+  color: #334155;
+  white-space: normal;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -363,6 +386,14 @@ input[type="range"] {
   font-weight: 800;
 }
 
+.positive {
+  color: #087f5b;
+}
+
+.negative {
+  color: #c2410c;
+}
+
 .loading-panel,
 .error-panel {
   margin-top: 20vh;
@@ -438,7 +469,8 @@ tr:last-child td {
   .layout-grid,
   .form-grid,
   .metric-grid,
-  .pick-grid {
+  .pick-grid,
+  .valuation-panel {
     grid-template-columns: 1fr;
   }
 

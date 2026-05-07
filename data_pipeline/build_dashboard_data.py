@@ -33,6 +33,10 @@ LATEST_CSV_FILE = DATA_DIR / "magic_formula_top50.csv"
 
 MIN_MARKET_CAP_RS = float(os.getenv("MF_MIN_MARKET_CAP_RS", 5_000 * 1e7))
 TOP_N = int(os.getenv("MF_TOP_N", "50"))
+VALUATION_TAX_RATE = float(os.getenv("MF_VALUATION_TAX_RATE", "0.25"))
+VALUATION_REQUIRED_EARNINGS_YIELD = float(os.getenv("MF_VALUATION_REQUIRED_EARNINGS_YIELD", "0.10"))
+if VALUATION_REQUIRED_EARNINGS_YIELD <= 0:
+    raise ValueError("MF_VALUATION_REQUIRED_EARNINGS_YIELD must be greater than zero.")
 DEFAULT_BATCH_SIZE = int(os.getenv("MF_BATCH_SIZE", "100"))
 DEFAULT_MAX_WORKERS = int(os.getenv("MF_MAX_WORKERS", "8"))
 DEFAULT_TIMEOUT = float(os.getenv("MF_TIMEOUT", "20"))
@@ -125,11 +129,15 @@ def compute_magic_formula(input_path: Path) -> tuple[pd.DataFrame, int]:
     ranked = df.assign(
         market_cap_cr=market_cap_rs / 1e7,
         previous_close=previous_close,
+        pbit_per_share=pbit_share,
+        owner_earnings_per_share=pbit_share * (1 - VALUATION_TAX_RATE),
+        intrinsic_value=(pbit_share * (1 - VALUATION_TAX_RATE)) / VALUATION_REQUIRED_EARNINGS_YIELD,
         enterprise_value_cr=enterprise_value_rs / 1e7,
         ebit_rs=ebit,
         earnings_yield=ebit / enterprise_value_rs,
         return_on_capital=roc,
     )
+    ranked["margin_of_safety"] = (ranked["intrinsic_value"] / ranked["previous_close"]) - 1
 
     ranked = ranked.replace([np.inf, -np.inf], np.nan)
     ranked = ranked.dropna(
@@ -140,6 +148,8 @@ def compute_magic_formula(input_path: Path) -> tuple[pd.DataFrame, int]:
             "market_cap_cr",
             "enterprise_value_cr",
             "previous_close",
+            "intrinsic_value",
+            "margin_of_safety",
         ]
     )
     ranked = ranked[(ranked["enterprise_value_cr"] > 0) & (ranked["market_cap_cr"] * 1e7 > MIN_MARKET_CAP_RS)]
@@ -160,6 +170,10 @@ def compute_magic_formula(input_path: Path) -> tuple[pd.DataFrame, int]:
         "sc_sector",
         "market_cap_cr",
         "previous_close",
+        "pbit_per_share",
+        "owner_earnings_per_share",
+        "intrinsic_value",
+        "margin_of_safety",
         "enterprise_value_cr",
         "earnings_yield",
         "return_on_capital",
@@ -196,6 +210,12 @@ def write_dashboard_files(recommendations: pd.DataFrame, *, ranked_count: int, r
         "filters": {
             "minimum_market_cap_rs": MIN_MARKET_CAP_RS,
             "top_n": TOP_N,
+        },
+        "valuation": {
+            "method": "Earnings power value",
+            "formula": "intrinsic_value = PBIT/share * (1 - tax_rate) / required_earnings_yield",
+            "tax_rate": VALUATION_TAX_RATE,
+            "required_earnings_yield": VALUATION_REQUIRED_EARNINGS_YIELD,
         },
         "counts": {
             "raw_rows": raw_count,
