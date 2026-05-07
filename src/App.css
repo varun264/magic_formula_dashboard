@@ -330,11 +330,20 @@ input[type="range"] {
 
 .pick-card {
   position: relative;
+  display: block;
+  width: 100%;
   min-height: 184px;
   border: 1px solid #d8e0ea;
   border-radius: 8px;
   padding: 18px;
   background: #f8fbfb;
+  color: inherit;
+  text-align: left;
+}
+
+.pick-card:hover,
+.clickable-row:hover {
+  background: #eef7f5;
 }
 
 .rank-badge {
@@ -386,6 +395,10 @@ input[type="range"] {
   font-weight: 800;
 }
 
+.clickable-row {
+  cursor: pointer;
+}
+
 .positive {
   color: #087f5b;
 }
@@ -405,6 +418,69 @@ input[type="range"] {
   padding: 10px;
   background: #fff1f2;
   color: #9f1239;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.stock-modal {
+  width: min(1120px, 100%);
+  max-height: min(86vh, 900px);
+  overflow: hidden;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid #e4e9f1;
+  padding: 22px;
+}
+
+.modal-header h2 {
+  font-size: 1.5rem;
+}
+
+.modal-header p {
+  margin-bottom: 0;
+  color: #66758a;
+}
+
+.close-button {
+  align-self: start;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px 22px;
+}
+
+.detail-table-wrap {
+  max-height: 52vh;
+  overflow: auto;
+  border-top: 1px solid #e4e9f1;
+}
+
+.detail-table-wrap table {
+  min-width: 720px;
+}
+
+.field-cell {
+  color: #435069;
+  font-weight: 800;
 }
 
 .table-wrap {
@@ -503,7 +579,9 @@ tr:last-child td {
   }
 
   .panel-header,
-  .toolbar {
+  .toolbar,
+  .modal-header,
+  .detail-grid {
     display: grid;
     justify-content: stretch;
   }

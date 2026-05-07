@@ -32,6 +32,8 @@ Generated dashboard assets:
 - `public/data/latest.json`
 - `public/data/magic_formula_top50.csv`
 
+Each displayed stock in `latest.json` includes a `details` object with the fetched Moneycontrol fields and computed dashboard metrics. In the dashboard, click a recommendation card or table row to view those fields.
+
 ## Intrinsic value estimate
 
 The dashboard displays a simple earnings-power intrinsic value estimate:
@@ -58,7 +60,7 @@ This is a screen-level estimate, not a full DCF.
 The workflow in `.github/workflows/deploy-pages.yml`:
 
 - builds seed dashboard data on every push to `main`
-- scrapes fresh Moneycontrol data on the 5th day of every month at 03:00 UTC
+- scrapes fresh Moneycontrol data every day at 00:30 UTC, which is 06:00 IST
 - supports manual runs with `scrape`, `test-scrape`, or `seed` data modes
 - supports `repository_dispatch` events of type `refresh-data`
 - deploys the static dashboard to GitHub Pages

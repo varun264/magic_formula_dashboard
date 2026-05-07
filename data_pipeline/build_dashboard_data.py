@@ -182,10 +182,24 @@ def compute_magic_formula(input_path: Path) -> tuple[pd.DataFrame, int]:
         "combined_rank",
     ]
     existing_output_columns = [column for column in output_columns if column in ranked.columns]
-    return ranked.loc[:, existing_output_columns].head(TOP_N), len(ranked)
+    top_ranked = ranked.head(TOP_N).copy()
+    recommendations = top_ranked.loc[:, existing_output_columns].copy()
+    recommendations["details"] = top_ranked.apply(
+        lambda row: {
+            str(column): clean_for_json(row[column])
+            for column in top_ranked.columns
+            if column != "details" and not pd.isna(row[column])
+        },
+        axis=1,
+    )
+    return recommendations, len(ranked)
 
 
 def clean_for_json(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): clean_for_json(nested_value) for key, nested_value in value.items()}
+    if isinstance(value, list):
+        return [clean_for_json(item) for item in value]
     if pd.isna(value):
         return None
     if isinstance(value, np.integer):
@@ -197,7 +211,7 @@ def clean_for_json(value: Any) -> Any:
 
 def write_dashboard_files(recommendations: pd.DataFrame, *, ranked_count: int, raw_count: int, scraped: bool) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    recommendations.to_csv(LATEST_CSV_FILE, index=False)
+    recommendations.drop(columns=["details"], errors="ignore").to_csv(LATEST_CSV_FILE, index=False)
 
     records = [
         {key: clean_for_json(value) for key, value in record.items()}

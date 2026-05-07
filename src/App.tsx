@@ -17,6 +17,7 @@ type Recommendation = {
   ey_rank: number;
   roc_rank: number;
   combined_rank: number;
+  details?: Record<string, string | number | boolean | null>;
 };
 
 type DashboardData = {
@@ -56,6 +57,7 @@ function App() {
   const [pickCount, setPickCount] = useState(3);
   const [query, setQuery] = useState("");
   const [sector, setSector] = useState("All sectors");
+  const [selectedStock, setSelectedStock] = useState<Recommendation | null>(null);
 
   useEffect(() => {
     fetch("./data/latest.json", { cache: "no-store" })
@@ -157,7 +159,7 @@ function App() {
         <div className="panel-header">
           <div>
             <h2>This Month</h2>
-            <p>Highest combined Earnings Yield and Return on Capital ranks.</p>
+            <p>Highest combined Earnings Yield and Return on Capital ranks. Click a stock to inspect fetched data.</p>
           </div>
           <label className="compact-field">
             <span>Picks</span>
@@ -173,7 +175,7 @@ function App() {
 
         <div className="pick-grid">
           {monthlyPicks.map((row) => (
-            <article className="pick-card" key={row.name}>
+            <button className="pick-card" key={row.name} onClick={() => setSelectedStock(row)} type="button">
               <span className="rank-badge">#{row.magic_formula_rank}</span>
               <h3>{row.name}</h3>
               <p>{row.sc_sector ?? "Sector unavailable"}</p>
@@ -193,7 +195,7 @@ function App() {
                   Close
                 </span>
               </div>
-            </article>
+            </button>
           ))}
         </div>
       </section>
@@ -202,7 +204,7 @@ function App() {
         <div className="panel-header table-tools">
           <div>
             <h2>Top 50 Ranking</h2>
-            <p>Source: {data.source}. Build mode: {data.scraped ? "fresh scrape" : "seed data"}.</p>
+            <p>Source: {data.source}. Build mode: {data.scraped ? "fresh scrape" : "seed data"}. Click any row for full fetched fields.</p>
           </div>
           <div className="toolbar">
             <label className="compact-field">
@@ -249,7 +251,7 @@ function App() {
                 </tr>
               ) : (
                 allRows.map((row) => (
-                  <tr key={row.name}>
+                  <tr className="clickable-row" key={row.name} onClick={() => setSelectedStock(row)}>
                     <td>{row.magic_formula_rank}</td>
                     <td className="company-cell">{row.name}</td>
                     <td>{row.sc_sector ?? "-"}</td>
@@ -272,6 +274,8 @@ function App() {
       </section>
 
       <p className="disclaimer">Educational screen only. Verify financial statements, liquidity, and portfolio fit before placing trades.</p>
+
+      {selectedStock ? <StockDetails stock={selectedStock} onClose={() => setSelectedStock(null)} /> : null}
     </main>
   );
 }
@@ -283,6 +287,75 @@ function Metric({ label, value }: { label: string; value: string | number }) {
       <span>{label}</span>
     </div>
   );
+}
+
+function StockDetails({ stock, onClose }: { stock: Recommendation; onClose: () => void }) {
+  const details = Object.entries(stock.details ?? {})
+    .filter(([, value]) => value !== null && value !== "")
+    .sort(([left], [right]) => left.localeCompare(right));
+
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <section className="stock-modal" role="dialog" aria-modal="true" aria-labelledby="stock-detail-title" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <p className="eyebrow">Fetched Stock Data</p>
+            <h2 id="stock-detail-title">{stock.name}</h2>
+            <p>
+              Rank #{stock.magic_formula_rank} - Intrinsic value Rs {numFmt(stock.intrinsic_value, 2)} - Margin{" "}
+              <span className={stock.margin_of_safety >= 0 ? "positive" : "negative"}>{pctFmt(stock.margin_of_safety, 1)}</span>
+            </p>
+          </div>
+          <button className="secondary close-button" onClick={onClose} type="button">
+            Close
+          </button>
+        </div>
+
+        <div className="detail-grid">
+          <Metric label="Previous close" value={`Rs ${numFmt(stock.previous_close, 2)}`} />
+          <Metric label="Intrinsic value" value={`Rs ${numFmt(stock.intrinsic_value, 2)}`} />
+          <Metric label="Margin of safety" value={pctFmt(stock.margin_of_safety, 1)} />
+          <Metric label="Sector" value={stock.sc_sector ?? "Unavailable"} />
+        </div>
+
+        <div className="detail-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {details.map(([key, value]) => (
+                <tr key={key}>
+                  <td className="field-cell">{humanizeKey(key)}</td>
+                  <td>{formatDetailValue(value)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function humanizeKey(key: string) {
+  return key
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatDetailValue(value: string | number | boolean | null) {
+  if (value === null) return "-";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") {
+    return Number.isInteger(value) ? numFmt(value) : numFmt(value, 4);
+  }
+  return value;
 }
 
 export default App;
