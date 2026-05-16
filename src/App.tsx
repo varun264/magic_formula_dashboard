@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
+import { analyzeStock } from "./services/gemini";
 
 type Recommendation = {
   magic_formula_rank: number;
@@ -294,6 +295,30 @@ function StockDetails({ stock, onClose }: { stock: Recommendation; onClose: () =
     .filter(([, value]) => value !== null && value !== "")
     .sort(([left], [right]) => left.localeCompare(right));
 
+  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleAnalyze = () => {
+    if (analysis || loading) return;
+    setLoading(true);
+    analyzeStock({
+      name: stock.name,
+      sector: stock.sc_sector,
+      marketCapCr: stock.market_cap_cr,
+      previousClose: stock.previous_close,
+      intrinsicValue: stock.intrinsic_value,
+      marginOfSafety: stock.margin_of_safety,
+      earningsYield: stock.earnings_yield,
+      returnOnCapital: stock.return_on_capital,
+      rank: stock.magic_formula_rank,
+      eyRank: stock.ey_rank,
+      rocRank: stock.roc_rank,
+    }).then((text) => {
+      setAnalysis(text);
+      setLoading(false);
+    });
+  };
+
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <section className="stock-modal" role="dialog" aria-modal="true" aria-labelledby="stock-detail-title" onClick={(event) => event.stopPropagation()}>
@@ -316,6 +341,21 @@ function StockDetails({ stock, onClose }: { stock: Recommendation; onClose: () =
           <Metric label="Intrinsic value" value={`Rs ${numFmt(stock.intrinsic_value, 2)}`} />
           <Metric label="Margin of safety" value={pctFmt(stock.margin_of_safety, 1)} />
           <Metric label="Sector" value={stock.sc_sector ?? "Unavailable"} />
+        </div>
+
+        <div className="ai-section">
+          {!analysis && !loading ? (
+            <button className="button secondary ai-trigger" onClick={handleAnalyze} type="button">
+              Analyze with AI
+            </button>
+          ) : loading ? (
+            <div className="ai-loading">Analyzing...</div>
+          ) : (
+            <div className="ai-analysis">
+              <p className="ai-label">AI Analysis</p>
+              <p className="ai-text">{analysis}</p>
+            </div>
+          )}
         </div>
 
         <div className="detail-table-wrap">

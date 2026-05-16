@@ -468,8 +468,47 @@ input[type="range"] {
   padding: 18px 22px;
 }
 
+.ai-section {
+  padding: 14px 22px;
+  border-bottom: 1px solid #e4e9f1;
+}
+
+.ai-trigger {
+  width: 100%;
+}
+
+.ai-loading {
+  color: #66758a;
+  font-style: italic;
+  font-size: 0.92rem;
+}
+
+.ai-analysis {
+  background: #f0f9f6;
+  border: 1px solid #c6e0d9;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.ai-label {
+  margin: 0 0 6px;
+  color: #0d766e;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ai-text {
+  margin: 0;
+  color: #1f2a3a;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
 .detail-table-wrap {
-  max-height: 52vh;
+  max-height: 44vh;
   overflow: auto;
   border-top: 1px solid #e4e9f1;
 }
