@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
-import { analyzeStock } from "./services/gemini";
+import { analyzeStock } from "./services/ai";
 
 type Recommendation = {
   magic_formula_rank: number;
