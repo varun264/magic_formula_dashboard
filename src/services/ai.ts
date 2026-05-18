@@ -206,11 +206,11 @@ Current Price: Rs ${stock.previousClose.toFixed(2)}
 Intrinsic Value: Rs ${stock.intrinsicValue.toFixed(2)}
 Margin of Safety: ${(stock.marginOfSafety * 100).toFixed(1)}%
 
-Provide 3 concise paragraphs:
-1. Magic Formula positioning and what the ranks indicate
-2. Valuation assessment (intrinsic vs market)
-3. Key considerations for an investor
-Keep it under 120 words. Be direct and factual.`;
+Provide a concise forward-looking analysis in 3 short paragraphs:
+1. What the Magic Formula ranks suggest about this company's current quality and value
+2. Outlook for the next 12 months — what could drive the stock up or down
+3. Verdict — would a value investor consider this a buy for the next year?
+Keep it under 120 words. Be direct and factual, not promotional.`;
 }
 
 function portfolioPrompt(recommendations: Array<{
