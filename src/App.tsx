@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
-import { analyzeStock } from "./services/ai";
+import { analyzeStock, parseAnalysis, type AnalysisResult } from "./services/ai";
 
 type Recommendation = {
   magic_formula_rank: number;
@@ -295,7 +295,7 @@ function StockDetails({ stock, onClose }: { stock: Recommendation; onClose: () =
     .filter(([, value]) => value !== null && value !== "")
     .sort(([left], [right]) => left.localeCompare(right));
 
-  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleAnalyze = () => {
@@ -315,10 +315,12 @@ function StockDetails({ stock, onClose }: { stock: Recommendation; onClose: () =
       rocRank: stock.roc_rank,
       details: stock.details,
     }).then((text) => {
-      setAnalysis(text);
+      setAnalysis(parseAnalysis(text));
       setLoading(false);
     });
   };
+
+  const verdictClass = analysis?.verdict === "BUY" ? "verdict-buy" : analysis?.verdict === "SELL" ? "verdict-sell" : "verdict-hold";
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
@@ -351,12 +353,32 @@ function StockDetails({ stock, onClose }: { stock: Recommendation; onClose: () =
             </button>
           ) : loading ? (
             <div className="ai-loading">Analyzing...</div>
-          ) : (
-            <div className="ai-analysis">
-              <p className="ai-label">AI Analysis</p>
-              <p className="ai-text">{analysis}</p>
-            </div>
-          )}
+          ) : (() => {
+            const a = analysis!;
+            return (
+              <div className="ai-analysis">
+                <span className={`verdict-badge ${verdictClass}`}>{a.verdict}</span>
+                {a.reasons.length > 0 && (
+                  <div className="analysis-block">
+                    <p className="analysis-heading">Why</p>
+                    <ul className="analysis-list">{a.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
+                  </div>
+                )}
+                {a.risks.length > 0 && (
+                  <div className="analysis-block">
+                    <p className="analysis-heading">Risks</p>
+                    <ul className="analysis-list">{a.risks.map((r, i) => <li key={i}>{r}</li>)}</ul>
+                  </div>
+                )}
+                {a.outlook && (
+                  <div className="analysis-block">
+                    <p className="analysis-heading">12-Month Outlook</p>
+                    <p className="analysis-outlook">{a.outlook}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         <div className="detail-table-wrap">

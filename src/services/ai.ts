@@ -289,11 +289,22 @@ function stockPrompt(stock: {
     lines.push("");
   }
 
-  lines.push("Based on all the data above, provide:",
-    "1. A clear BUY / SELL / HOLD verdict for the next 12 months",
-    "2. Key reasons supporting your verdict (quality, valuation, risks)",
-    "3. What catalysts or risks could change the outlook",
-    "Keep it under 150 words. Be direct and data-driven.");
+  lines.push("Return your analysis in this exact format (use the headings exactly as shown):",
+    "",
+    "VERDICT: BUY / SELL / HOLD",
+    "",
+    "REASONS:",
+    "- <reason 1>",
+    "- <reason 2>",
+    "",
+    "RISKS:",
+    "- <risk 1>",
+    "- <risk 2>",
+    "",
+    "OUTLOOK:",
+    "<2-3 sentence outlook for the next 12 months>",
+    "",
+    "Be direct and data-driven. Keep reasons and risks to 2-3 bullet points each.");
 
   return lines.join("\n");
 }
@@ -353,6 +364,40 @@ export async function analyzeStock(stock: {
   });
 
   return pending;
+}
+
+export type AnalysisResult = {
+  verdict: string;
+  reasons: string[];
+  risks: string[];
+  outlook: string;
+};
+
+export function parseAnalysis(text: string): AnalysisResult | null {
+  if (!text || text.includes("auth error") || text.includes("unavailable") || text.includes("rate-limited") || text.includes("blocked")) return null;
+
+  const extractBullets = (section: string): string[] => {
+    const lines: string[] = [];
+    for (const line of section.split("\n")) {
+      const match = line.match(/^\s*[-*]\s+(.+)/);
+      if (match) lines.push(match[1]);
+    }
+    return lines;
+  };
+
+  const verdictMatch = text.match(/VERDICT:\s*(BUY|SELL|HOLD)/i);
+  const reasonsMatch = text.match(/REASONS:\s*([\s\S]*?)(?=\n\s*(?:RISKS|$))/i);
+  const risksMatch = text.match(/RISKS:\s*([\s\S]*?)(?=\n\s*(?:OUTLOOK|$))/i);
+  const outlookMatch = text.match(/OUTLOOK:\s*([\s\S]*?)$/i);
+
+  if (!verdictMatch) return null;
+
+  return {
+    verdict: verdictMatch[1].toUpperCase(),
+    reasons: reasonsMatch ? extractBullets(reasonsMatch[1]) : [],
+    risks: risksMatch ? extractBullets(risksMatch[1]) : [],
+    outlook: outlookMatch ? outlookMatch[1].trim() : "",
+  };
 }
 
 export async function analyzePortfolio(recommendations: Array<{
