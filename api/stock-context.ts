@@ -18,28 +18,28 @@ export default async function handler(req: Request): Promise<Response> {
       }),
     ]);
 
-    type ChartJson = {
-      chart?: { result?: Array<{ meta?: Record<string, unknown>; timestamp?: number[]; indicators?: { quote?: Array<Record<string, (number | null)[]>> } }> };
-    };
-    type NewsJson = Array<{ title: string; link?: string; publisher?: string; published_at?: string }>;
-
     let price: string | null = null;
     let change: string | null = null;
     let changePct: string | null = null;
 
     if (chartRes.ok) {
-      const chartJson: ChartJson = await chartRes.json();
-      const meta = chartJson?.chart?.result?.[0]?.meta;
-      if (meta) {
-        price = meta.regularMarketPrice?.toFixed(2) ?? null;
-        change = meta.chartPreviousClose ? (meta.regularMarketPrice - meta.chartPreviousClose).toFixed(2) : null;
-        changePct = meta.chartPreviousClose ? (((meta.regularMarketPrice - meta.chartPreviousClose) / meta.chartPreviousClose) * 100).toFixed(2) : null;
+      const chartJson: { chart?: { result?: Array<{ meta?: Record<string, unknown> }> } } = await chartRes.json();
+      const m = chartJson?.chart?.result?.[0]?.meta;
+      if (m) {
+        const mp = m.regularMarketPrice as number | undefined;
+        const prev = m.chartPreviousClose as number | undefined;
+        if (mp != null) price = mp.toFixed(2);
+        if (mp != null && prev != null) {
+          const diff = mp - prev;
+          change = diff.toFixed(2);
+          changePct = ((diff / prev) * 100).toFixed(2);
+        }
       }
     }
 
     let headlines: Array<{ title: string; source: string }> = [];
     if (newsRes.ok) {
-      const newsJson: NewsJson = await newsRes.json();
+      const newsJson: Array<{ title: string; publisher?: string }> = await newsRes.json();
       headlines = (Array.isArray(newsJson) ? newsJson : []).slice(0, 5).map((n) => ({
         title: n.title,
         source: n.publisher ?? "Yahoo Finance",
