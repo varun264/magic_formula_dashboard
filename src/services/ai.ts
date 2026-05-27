@@ -189,6 +189,12 @@ type WebContext = {
   price: string | null;
   change: string | null;
   changePct: string | null;
+  trailingPE: string | null;
+  forwardPE: string | null;
+  eps: string | null;
+  bookValue: string | null;
+  priceToBook: string | null;
+  dividendYield: string | null;
   headlines: Array<{ title: string; source: string }>;
 };
 
@@ -232,41 +238,57 @@ function stockPrompt(stock: {
   lines.push(`Earnings Yield Rank: #${stock.eyRank} | Return on Capital Rank: #${stock.rocRank}`);
   lines.push(`Earnings Yield: ${(stock.earningsYield * 100).toFixed(2)}%`);
   lines.push(`Return on Capital: ${(stock.returnOnCapital * 100).toFixed(2)}%`);
-  lines.push(`Market Cap: Rs ${stock.marketCapCr.toFixed(0)} Cr`);
   lines.push(`Current Price: Rs ${stock.previousClose.toFixed(2)}`);
-  lines.push(`Intrinsic Value (EPV): Rs ${stock.intrinsicValue.toFixed(2)}`);
-  lines.push(`Margin of Safety: ${(stock.marginOfSafety * 100).toFixed(1)}%`);
   lines.push("");
 
+  // ── Valuation estimates ──
+  const epv = stock.intrinsicValue;
+  const epvMargin = stock.marginOfSafety;
+
   const d = stock.details;
+  let graham: number | null = null;
+  let epsVal: string | null = null;
+  let bvVal: string | null = null;
+
   if (d) {
     const pick = (key: string) => {
       const v = d[key];
-      return v != null && v !== "" ? String(v) : null;
+      if (v == null || v === "") return null;
+      const s = String(v).replace(/,/g, "");
+      const n = parseFloat(s);
+      return isNaN(n) ? null : n;
     };
 
+    const epsNum = pick("TTM EPS");
+    const bvNum = pick("Book Value [ExclRevalReserve]/Share (Rs.)") ?? pick("Book Value [InclRevalReserve]/Share (Rs.)");
+    epsVal = epsNum != null ? epsNum.toFixed(2) : null;
+    bvVal = bvNum != null ? bvNum.toFixed(2) : null;
+
+    // Graham Number = sqrt(22.5 × EPS × BVPS)
+    if (epsNum != null && bvNum != null && epsNum > 0 && bvNum > 0) {
+      graham = Math.sqrt(22.5 * epsNum * bvNum);
+    }
+
     const pe = pick("TTM PE");
-    const eps = pick("TTM EPS");
     const pb = pick("Price/BV (X)") ?? pick("Price To Book Value (X)");
     const roe = pick("Return on Networth/Equity (%)") ?? pick("Return On Equity/Networth (%)");
     const de = pick("Total Debt/Equity (X)");
     const divPayout = pick("Dividend Payout Ratio (NP) (%)");
-    const bv = pick("Book Value [ExclRevalReserve]/Share (Rs.)") ?? pick("Book Value [InclRevalReserve]/Share (Rs.)");
     const roce = pick("Return on Capital Employed (%)");
     const evEbitda = pick("EV/EBITDA (X)");
     const currentRatio = pick("Current Ratio (X)");
     const faceValue = pick("Face Value");
 
     const ratios: string[] = [];
-    if (pe) ratios.push(`P/E: ${pe}`);
-    if (pb) ratios.push(`P/B: ${pb}`);
-    if (eps) ratios.push(`TTM EPS: Rs ${eps}`);
-    if (roe) ratios.push(`ROE: ${roe}%`);
-    if (roce) ratios.push(`ROCE: ${roce}%`);
-    if (de) ratios.push(`Debt/Equity: ${de}`);
+    if (pe) ratios.push(`P/E: ${pe.toFixed(2)}`);
+    if (pb) ratios.push(`P/B: ${pb.toFixed(2)}`);
+    if (epsVal) ratios.push(`TTM EPS: Rs ${epsVal}`);
+    if (roe) ratios.push(`ROE: ${roe.toFixed(2)}%`);
+    if (roce) ratios.push(`ROCE: ${roce.toFixed(2)}%`);
+    if (de) ratios.push(`Debt/Equity: ${de.toFixed(2)}`);
     if (evEbitda) ratios.push(`EV/EBITDA: ${evEbitda}`);
     if (currentRatio) ratios.push(`Current Ratio: ${currentRatio}`);
-    if (bv) ratios.push(`Book Value: Rs ${bv}`);
+    if (bvVal) ratios.push(`Book Value: Rs ${bvVal}`);
     if (divPayout) ratios.push(`Div Payout: ${divPayout}%`);
     if (faceValue) ratios.push(`Face Value: Rs ${faceValue}`);
 
@@ -277,17 +299,33 @@ function stockPrompt(stock: {
     }
   }
 
+  // Valuation comparison block
+  lines.push("Valuation Estimates:");
+  lines.push(`EPV (Earnings Power Value): Rs ${epv.toFixed(2)} (margin: ${(epvMargin * 100).toFixed(1)}%)`);
+  if (graham != null) {
+    const grahamMargin = (graham / stock.previousClose) - 1;
+    lines.push(`Graham Number: Rs ${graham.toFixed(2)} (margin: ${(grahamMargin * 100).toFixed(1)}%)`);
+  }
+  lines.push(`Current Price: Rs ${stock.previousClose.toFixed(2)}`);
+
   if (stock.web) {
     const w = stock.web;
     if (w.price) {
-      lines.push(`Recent Price: Rs ${w.price} (${w.changePct ? (Number(w.changePct) >= 0 ? "+" : "") + w.changePct + "%" : "N/A"})`);
+      lines.push(`Live Price: Rs ${w.price} (${w.changePct ? (Number(w.changePct) >= 0 ? "+" : "") + w.changePct + "%" : "N/A"})`);
     }
-    if (w.headlines.length > 0) {
-      lines.push("Recent News:");
-      w.headlines.forEach((h) => lines.push(`- ${h.title}`));
+    const yhPE: string[] = [];
+    if (w.trailingPE) yhPE.push(`Trailing P/E: ${w.trailingPE}`);
+    if (w.forwardPE) yhPE.push(`Forward P/E: ${w.forwardPE}`);
+    if (w.eps) yhPE.push(`EPS: Rs ${w.eps}`);
+    if (w.bookValue) yhPE.push(`Book Value: Rs ${w.bookValue}`);
+    if (w.priceToBook) yhPE.push(`P/B: ${w.priceToBook}`);
+    if (w.dividendYield) yhPE.push(`Div Yield: ${(Number(w.dividendYield) * 100).toFixed(2)}%`);
+    if (yhPE.length > 0) {
+      lines.push("Yahoo Finance Data:");
+      lines.push(yhPE.join(" | "));
     }
-    lines.push("");
   }
+  lines.push("");
 
   lines.push("Return your analysis in this exact format (use the headings exactly as shown):",
     "",

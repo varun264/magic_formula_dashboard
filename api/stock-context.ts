@@ -9,8 +9,11 @@ export default async function handler(req: Request): Promise<Response> {
   const yahooSymbol = `${symbol}.NS`;
 
   try {
-    const [chartRes, newsRes] = await Promise.all([
+    const [chartRes, quoteRes, newsRes] = await Promise.all([
       fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${yahooSymbol}?range=5d&interval=1d`, {
+        headers: { "User-Agent": "Mozilla/5.0" },
+      }),
+      fetch(`https://query2.finance.yahoo.com/v10/finance/quoteSummary/${yahooSymbol}?modules=summaryDetail,financialData,defaultKeyStatistics`, {
         headers: { "User-Agent": "Mozilla/5.0" },
       }),
       fetch(`https://query1.finance.yahoo.com/v8/finance/news/${yahooSymbol}`, {
@@ -21,6 +24,12 @@ export default async function handler(req: Request): Promise<Response> {
     let price: string | null = null;
     let change: string | null = null;
     let changePct: string | null = null;
+    let trailingPE: string | null = null;
+    let forwardPE: string | null = null;
+    let eps: string | null = null;
+    let bookValue: string | null = null;
+    let priceToBook: string | null = null;
+    let dividendYield: string | null = null;
 
     if (chartRes.ok) {
       const chartJson: { chart?: { result?: Array<{ meta?: Record<string, unknown> }> } } = await chartRes.json();
@@ -37,6 +46,32 @@ export default async function handler(req: Request): Promise<Response> {
       }
     }
 
+    if (quoteRes.ok) {
+      const qj: { quoteSummary?: { result?: Array<Record<string, unknown>> } } = await quoteRes.json();
+      const q = qj?.quoteSummary?.result?.[0];
+      if (q) {
+        const g = (v: unknown, path: string): string | null => {
+          const keys = path.split(".");
+          let cur: unknown = v;
+          for (const k of keys) {
+            if (cur && typeof cur === "object") cur = (cur as Record<string, unknown>)[k];
+            else return null;
+          }
+          if (cur && typeof cur === "object") {
+            const raw = (cur as Record<string, unknown>).raw as number | undefined;
+            return raw != null ? raw.toFixed(2) : null;
+          }
+          return null;
+        };
+        trailingPE = g(q, "summaryDetail.trailingPE");
+        forwardPE = g(q, "summaryDetail.forwardPE");
+        eps = g(q, "defaultKeyStatistics.earningsPerShare");
+        bookValue = g(q, "defaultKeyStatistics.bookValue");
+        priceToBook = g(q, "defaultKeyStatistics.priceToBook");
+        dividendYield = g(q, "summaryDetail.dividendYield");
+      }
+    }
+
     let headlines: Array<{ title: string; source: string }> = [];
     if (newsRes.ok) {
       const newsJson: Array<{ title: string; publisher?: string }> = await newsRes.json();
@@ -46,9 +81,9 @@ export default async function handler(req: Request): Promise<Response> {
       }));
     }
 
-    return Response.json({ symbol, price, change, changePct, headlines });
+    return Response.json({ symbol, price, change, changePct, trailingPE, forwardPE, eps, bookValue, priceToBook, dividendYield, headlines });
   } catch {
-    return Response.json({ symbol, price: null, change: null, changePct: null, headlines: [] });
+    return Response.json({ symbol, price: null, change: null, changePct: null, trailingPE: null, forwardPE: null, eps: null, bookValue: null, priceToBook: null, dividendYield: null, headlines: [] });
   }
 }
 

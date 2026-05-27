@@ -298,6 +298,23 @@ function StockDetails({ stock, onClose }: { stock: Recommendation; onClose: () =
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const graham = useMemo(() => {
+    const d = stock.details;
+    if (!d) return null;
+    const p = (key: string) => {
+      const v = d[key];
+      if (v == null || v === "") return null;
+      const n = parseFloat(String(v).replace(/,/g, ""));
+      return isNaN(n) ? null : n;
+    };
+    const eps = p("TTM EPS");
+    const bv = p("Book Value [ExclRevalReserve]/Share (Rs.)") ?? p("Book Value [InclRevalReserve]/Share (Rs.)");
+    if (eps != null && bv != null && eps > 0 && bv > 0) {
+      return Math.sqrt(22.5 * eps * bv);
+    }
+    return null;
+  }, [stock.details]);
+
   const handleAnalyze = () => {
     if (analysis || loading) return;
     setLoading(true);
@@ -340,10 +357,16 @@ function StockDetails({ stock, onClose }: { stock: Recommendation; onClose: () =
         </div>
 
         <div className="detail-grid">
-          <Metric label="Previous close" value={`Rs ${numFmt(stock.previous_close, 2)}`} />
-          <Metric label="Intrinsic value" value={`Rs ${numFmt(stock.intrinsic_value, 2)}`} />
-          <Metric label="Margin of safety" value={pctFmt(stock.margin_of_safety, 1)} />
-          <Metric label="Sector" value={stock.sc_sector ?? "Unavailable"} />
+          <Metric label="Current Price" value={`Rs ${numFmt(stock.previous_close, 2)}`} />
+          <Metric label="Sector" value={stock.sc_sector ?? "N/A"} />
+          <Metric label="Price / EPV" value={pctFmt(stock.previous_close / stock.intrinsic_value - 1, 1)} />
+          <Metric label="Price / Graham" value={graham ? pctFmt(stock.previous_close / graham - 1, 1) : "N/A"} />
+        </div>
+        <div className="detail-grid">
+          <Metric label="EPV (Earnings Power)" value={`Rs ${numFmt(stock.intrinsic_value, 2)}`} />
+          <Metric label="EPV Margin" value={pctFmt(stock.margin_of_safety, 1)} />
+          <Metric label="Graham Number" value={graham != null ? `Rs ${numFmt(graham, 2)}` : "N/A"} />
+          <Metric label="Graham Margin" value={graham != null ? pctFmt(graham / stock.previous_close - 1, 1) : "N/A"} />
         </div>
 
         <div className="ai-section">
