@@ -93,7 +93,7 @@ async function tryGroq(prompt: string): Promise<string> {
             { role: "system", content: "You are a concise value investing analyst. Respond in plain text without markdown." },
             { role: "user", content: prompt },
           ],
-          max_tokens: 400,
+          max_tokens: 600,
           temperature: 0.3,
         }),
       });
@@ -121,10 +121,9 @@ async function tryHuggingFace(prompt: string): Promise<string> {
   const key = import.meta.env.VITE_HUGGINGFACE_API_KEY;
   if (!key) throw new Error("no_key");
 
-  // Wrap prompt as a conversation
   const body = JSON.stringify({
     inputs: `<|system|>\nYou are a concise value investing analyst. Respond in plain text.\n<|user|>\n${prompt}\n<|assistant|>\n`,
-    parameters: { max_new_tokens: 400, temperature: 0.3, return_full_text: false },
+    parameters: { max_new_tokens: 600, temperature: 0.3, return_full_text: false },
   });
 
   for (let attempt = 0; ; attempt++) {
@@ -143,7 +142,6 @@ async function tryHuggingFace(prompt: string): Promise<string> {
         throw new Error(`error:huggingface (${res.status})`);
       }
       if (res.headers.get("content-type")?.includes("text")) {
-        // Model loading – retry
         if (attempt < 2) {
           await sleep(5000 * (attempt + 1));
           continue;
@@ -185,32 +183,119 @@ async function generateWithFallback(prompt: string): Promise<string> {
   return "All AI providers are currently rate-limited. Try again in a few minutes.";
 }
 
+// ── Web context ─────────────────────────────────────────────────
+
+type WebContext = {
+  price: string | null;
+  change: string | null;
+  changePct: string | null;
+  headlines: Array<{ title: string; source: string }>;
+};
+
+async function fetchWebContext(pdtDisNm: string): Promise<WebContext | null> {
+  try {
+    const res = await fetch(`/api/stock-context?pdt=${encodeURIComponent(pdtDisNm)}`);
+    if (!res.ok) return null;
+    return await res.json() as WebContext;
+  } catch {
+    return null;
+  }
+}
+
+function extractPdtDisNm(details: Record<string, string | number | boolean | null> | undefined): string | null {
+  if (!details) return null;
+  const v = details["pdt_dis_nm"];
+  return typeof v === "string" && v.length > 0 ? v : null;
+}
+
 // ── Build prompts ───────────────────────────────────────────────
 
 function stockPrompt(stock: {
-  name: string; sector: string | null; marketCapCr: number;
-  previousClose: number; intrinsicValue: number; marginOfSafety: number;
-  earningsYield: number; returnOnCapital: number;
-  rank: number; eyRank: number; rocRank: number;
+  name: string;
+  sector: string | null;
+  marketCapCr: number;
+  previousClose: number;
+  intrinsicValue: number;
+  marginOfSafety: number;
+  earningsYield: number;
+  returnOnCapital: number;
+  rank: number;
+  eyRank: number;
+  rocRank: number;
+  details?: Record<string, string | number | boolean | null>;
+  web?: WebContext | null;
 }) {
-  return `Analyze this Magic Formula stock pick:
+  const lines: string[] = ["Analyze this Magic Formula stock pick:", ""];
+  lines.push(`Company: ${stock.name}`);
+  lines.push(`Sector: ${stock.sector ?? "N/A"}`);
+  lines.push(`Magic Formula Rank: #${stock.rank}`);
+  lines.push(`Earnings Yield Rank: #${stock.eyRank} | Return on Capital Rank: #${stock.rocRank}`);
+  lines.push(`Earnings Yield: ${(stock.earningsYield * 100).toFixed(2)}%`);
+  lines.push(`Return on Capital: ${(stock.returnOnCapital * 100).toFixed(2)}%`);
+  lines.push(`Market Cap: Rs ${stock.marketCapCr.toFixed(0)} Cr`);
+  lines.push(`Current Price: Rs ${stock.previousClose.toFixed(2)}`);
+  lines.push(`Intrinsic Value (EPV): Rs ${stock.intrinsicValue.toFixed(2)}`);
+  lines.push(`Margin of Safety: ${(stock.marginOfSafety * 100).toFixed(1)}%`);
+  lines.push("");
 
-Company: ${stock.name}
-Sector: ${stock.sector ?? "N/A"}
-Magic Formula Rank: #${stock.rank}
-Earnings Yield Rank: #${stock.eyRank}
-Return on Capital Rank: #${stock.rocRank}
-Earnings Yield: ${(stock.earningsYield * 100).toFixed(2)}%
-Return on Capital: ${(stock.returnOnCapital * 100).toFixed(2)}%
-Current Price: Rs ${stock.previousClose.toFixed(2)}
-Intrinsic Value: Rs ${stock.intrinsicValue.toFixed(2)}
-Margin of Safety: ${(stock.marginOfSafety * 100).toFixed(1)}%
+  const d = stock.details;
+  if (d) {
+    const pick = (key: string) => {
+      const v = d[key];
+      return v != null && v !== "" ? String(v) : null;
+    };
 
-Provide a concise forward-looking analysis in 3 short paragraphs:
-1. What the Magic Formula ranks suggest about this company's current quality and value
-2. Outlook for the next 12 months — what could drive the stock up or down
-3. Verdict — would a value investor consider this a buy for the next year?
-Keep it under 120 words. Be direct and factual, not promotional.`;
+    const pe = pick("TTM PE");
+    const eps = pick("TTM EPS");
+    const pb = pick("Price/BV (X)") ?? pick("Price To Book Value (X)");
+    const roe = pick("Return on Networth/Equity (%)") ?? pick("Return On Equity/Networth (%)");
+    const de = pick("Total Debt/Equity (X)");
+    const divPayout = pick("Dividend Payout Ratio (NP) (%)");
+    const bv = pick("Book Value [ExclRevalReserve]/Share (Rs.)") ?? pick("Book Value [InclRevalReserve]/Share (Rs.)");
+    const roce = pick("Return on Capital Employed (%)");
+    const evEbitda = pick("EV/EBITDA (X)");
+    const currentRatio = pick("Current Ratio (X)");
+    const faceValue = pick("Face Value");
+
+    const ratios: string[] = [];
+    if (pe) ratios.push(`P/E: ${pe}`);
+    if (pb) ratios.push(`P/B: ${pb}`);
+    if (eps) ratios.push(`TTM EPS: Rs ${eps}`);
+    if (roe) ratios.push(`ROE: ${roe}%`);
+    if (roce) ratios.push(`ROCE: ${roce}%`);
+    if (de) ratios.push(`Debt/Equity: ${de}`);
+    if (evEbitda) ratios.push(`EV/EBITDA: ${evEbitda}`);
+    if (currentRatio) ratios.push(`Current Ratio: ${currentRatio}`);
+    if (bv) ratios.push(`Book Value: Rs ${bv}`);
+    if (divPayout) ratios.push(`Div Payout: ${divPayout}%`);
+    if (faceValue) ratios.push(`Face Value: Rs ${faceValue}`);
+
+    if (ratios.length > 0) {
+      lines.push("Key Financial Ratios:");
+      lines.push(ratios.join(" | "));
+      lines.push("");
+    }
+  }
+
+  if (stock.web) {
+    const w = stock.web;
+    if (w.price) {
+      lines.push(`Recent Price: Rs ${w.price} (${w.changePct ? (Number(w.changePct) >= 0 ? "+" : "") + w.changePct + "%" : "N/A"})`);
+    }
+    if (w.headlines.length > 0) {
+      lines.push("Recent News:");
+      w.headlines.forEach((h) => lines.push(`- ${h.title}`));
+    }
+    lines.push("");
+  }
+
+  lines.push("Based on all the data above, provide:",
+    "1. A clear BUY / SELL / HOLD verdict for the next 12 months",
+    "2. Key reasons supporting your verdict (quality, valuation, risks)",
+    "3. What catalysts or risks could change the outlook",
+    "Keep it under 150 words. Be direct and data-driven.");
+
+  return lines.join("\n");
 }
 
 function portfolioPrompt(recommendations: Array<{
@@ -230,23 +315,39 @@ Give a 2-sentence summary of what stands out about this portfolio. Mention secto
 
 // ── Exported API ────────────────────────────────────────────────
 
-export async function analyzeStock(stock: Parameters<typeof stockPrompt>[0]): Promise<string> {
-  const key = stock.name;
-  const cached = cache.get(key);
+export async function analyzeStock(stock: {
+  name: string;
+  sector: string | null;
+  marketCapCr: number;
+  previousClose: number;
+  intrinsicValue: number;
+  marginOfSafety: number;
+  earningsYield: number;
+  returnOnCapital: number;
+  rank: number;
+  eyRank: number;
+  rocRank: number;
+  details?: Record<string, string | number | boolean | null>;
+}): Promise<string> {
+  const cacheKey = stock.name;
+  const cached = cache.get(cacheKey);
   if (cached) return cached;
 
   while (pending) {
     await pending;
-    const recheck = cache.get(key);
+    const recheck = cache.get(cacheKey);
     if (recheck) return recheck;
   }
 
-  const prompt = stockPrompt(stock);
+  const pdt = extractPdtDisNm(stock.details);
+  const web = pdt ? await fetchWebContext(pdt) : null;
+
+  const prompt = stockPrompt({ ...stock, web });
 
   pending = generateWithFallback(prompt).then((text) => {
     pending = null;
     if (text && !text.includes("auth error") && !text.includes("unavailable") && !text.includes("rate-limited") && !text.includes("blocked")) {
-      cache.set(key, text);
+      cache.set(cacheKey, text);
     }
     return text;
   });
@@ -254,7 +355,10 @@ export async function analyzeStock(stock: Parameters<typeof stockPrompt>[0]): Pr
   return pending;
 }
 
-export async function analyzePortfolio(recommendations: Parameters<typeof portfolioPrompt>[0]): Promise<string> {
+export async function analyzePortfolio(recommendations: Array<{
+  name: string; sector: string | null;
+  earningsYield: number; returnOnCapital: number; marginOfSafety: number;
+}>): Promise<string> {
   if (recommendations.length === 0) return "";
   return generateWithFallback(portfolioPrompt(recommendations));
 }

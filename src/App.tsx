@@ -313,6 +313,7 @@ function StockDetails({ stock, onClose }: { stock: Recommendation; onClose: () =
       rank: stock.magic_formula_rank,
       eyRank: stock.ey_rank,
       rocRank: stock.roc_rank,
+      details: stock.details,
     }).then((text) => {
       setAnalysis(text);
       setLoading(false);
