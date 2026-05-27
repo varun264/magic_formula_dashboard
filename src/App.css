@@ -431,13 +431,19 @@ input[type="range"] {
 }
 
 .stock-modal {
+  display: flex;
+  flex-direction: column;
   width: min(1120px, 100%);
   max-height: min(86vh, 900px);
-  overflow: hidden;
   border: 1px solid #d8e0ea;
   border-radius: 8px;
   background: white;
   box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
+}
+
+.modal-body {
+  overflow-y: auto;
+  flex: 1;
 }
 
 .modal-header {

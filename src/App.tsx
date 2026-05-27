@@ -356,6 +356,7 @@ function StockDetails({ stock, onClose }: { stock: Recommendation; onClose: () =
           </button>
         </div>
 
+        <div className="modal-body">
         <div className="detail-grid">
           <Metric label="Current Price" value={`Rs ${numFmt(stock.previous_close, 2)}`} />
           <Metric label="Sector" value={stock.sc_sector ?? "N/A"} />
@@ -421,6 +422,7 @@ function StockDetails({ stock, onClose }: { stock: Recommendation; onClose: () =
               ))}
             </tbody>
           </table>
+        </div>
         </div>
       </section>
     </div>
