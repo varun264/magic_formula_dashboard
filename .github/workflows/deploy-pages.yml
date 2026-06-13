@@ -94,12 +94,7 @@ jobs:
         with:
           path: dist
       - name: Deploy to Vercel
-        env:
-          VERCEL_ORG_ID: team_88MWwdiFB9KssPykC7AGKPou
-          VERCEL_PROJECT_ID: prj_Rv4WjHRT7PDDAWcYh0hj5MaW9HCG
-        run: |
-          npm install -g vercel
-          vercel --prod --token "${{ secrets.VERCEL_TOKEN }}" --yes --cwd dist
+        run: npx vercel --prod --token "${{ secrets.VERCEL_TOKEN }}" --yes
 
   deploy:
     environment:
