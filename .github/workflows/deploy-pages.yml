@@ -94,7 +94,7 @@ jobs:
         with:
           path: dist
       - name: Deploy to Vercel
-        run: curl -X POST "https://api.vercel.com/v1/integrations/deploy/${{ secrets.VERCEL_DEPLOY_HOOK }}"
+        run: npx vercel --prod --token "${{ secrets.VERCEL_TOKEN }}" --yes
 
   deploy:
     environment:
