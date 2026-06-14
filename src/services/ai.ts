@@ -117,48 +117,60 @@ async function tryGroq(prompt: string): Promise<string> {
 
 // ── Hugging Face ─────────────────────────────────────────────────
 
+const HF_MODELS = [
+  "microsoft/Phi-3-mini-4k-instruct",
+  "HuggingFaceH4/zephyr-7b-beta",
+  "mistralai/Mistral-7B-Instruct-v0.3",
+];
+
 async function tryHuggingFace(prompt: string): Promise<string> {
   const key = import.meta.env.VITE_HUGGINGFACE_API_KEY;
   if (!key) throw new Error("no_key");
 
-  const body = JSON.stringify({
-    inputs: `<|system|>\nYou are a concise value investing analyst. Respond in plain text.\n<|user|>\n${prompt}\n<|assistant|>\n`,
-    parameters: { max_new_tokens: 600, temperature: 0.3, return_full_text: false },
-  });
+  const hfCall = async (model: string): Promise<string> => {
+    const body = JSON.stringify({
+      inputs: prompt,
+      parameters: { max_new_tokens: 600, temperature: 0.3, return_full_text: false },
+    });
 
-  for (let attempt = 0; ; attempt++) {
-    try {
-      const res = await fetch(
-        "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3",
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-          body,
-        }
-      );
-      if (!res.ok) {
-        if (res.status === 429 || res.status === 503) throw new Error("rate:huggingface");
-        if (res.status === 401 || res.status === 403) throw new Error("auth:huggingface");
-        throw new Error(`error:huggingface (${res.status})`);
+    const res = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      if (text.includes("image") || text.includes("does not support")) throw new Error("skip");
+      if (res.status === 429 || res.status === 503) throw new Error("rate:huggingface");
+      if (res.status === 401 || res.status === 403) throw new Error("auth:huggingface");
+      throw new Error(`error:huggingface (${res.status})`);
+    }
+    const ct = res.headers.get("content-type") ?? "";
+    if (ct.includes("text")) throw new Error("loading");
+    const data = await res.json();
+    if (data?.error) {
+      if (String(data.error).includes("image")) throw new Error("skip");
+      throw new Error(`error:huggingface`);
+    }
+    return Array.isArray(data) ? (data[0]?.generated_text ?? "") : "";
+  };
+
+  for (const model of HF_MODELS) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await hfCall(model);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg === "skip") break;
+        if (msg === "loading" && attempt < 2) { await sleep(5000 * (attempt + 1)); continue; }
+        if (msg.startsWith("rate") && attempt < 2) { await sleep(5000 * 2 ** attempt + Math.random() * 2000); continue; }
+        if (msg.startsWith("auth")) throw err;
+        if (msg.startsWith("error") || msg === "loading") break;
+        throw err;
       }
-      if (res.headers.get("content-type")?.includes("text")) {
-        if (attempt < 2) {
-          await sleep(5000 * (attempt + 1));
-          continue;
-        }
-        throw new Error("error:huggingface (model loading)");
-      }
-      const data = await res.json();
-      return Array.isArray(data) ? (data[0]?.generated_text ?? "") : "";
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.startsWith("rate") && attempt < 2) {
-        await sleep(5000 * 2 ** attempt + Math.random() * 2000);
-        continue;
-      }
-      throw err;
     }
   }
+  throw new Error("error:huggingface");
 }
 
 // ── Fallback chain ──────────────────────────────────────────────
