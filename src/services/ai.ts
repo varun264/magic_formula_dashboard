@@ -29,6 +29,10 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function stripThinking(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>\s*/gi, "").trim();
+}
+
 function isRateLimit(msg: string): boolean {
   const signals = [
     "429", "rate", "quota", "RATE_LIMIT", "RESOURCE_EXHAUSTED",
@@ -88,7 +92,7 @@ async function tryGroq(prompt: string): Promise<string> {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "qwen/qwen3.6-27b",
           messages: [
             { role: "system", content: "You are a concise value investing analyst. Respond in plain text without markdown." },
             { role: "user", content: prompt },
@@ -103,7 +107,7 @@ async function tryGroq(prompt: string): Promise<string> {
         throw new Error(`error:groq (${res.status})`);
       }
       const data = await res.json();
-      return data.choices[0].message.content;
+      return stripThinking(data.choices[0].message.content ?? "");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.startsWith("rate") && attempt < 2) {
