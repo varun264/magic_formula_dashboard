@@ -2,7 +2,6 @@ name: Deploy dashboard to GitHub Pages
 
 on:
   push:
-    branches: [main]
   schedule:
     # 22:30 UTC = 04:00 IST (India Standard Time, UTC+5:30)
     - cron: "30 22 * * *"
