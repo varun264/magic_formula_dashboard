@@ -9,6 +9,7 @@ import pandas as pd
 from ..clients.moneycontrol import MoneyControlClient
 from ..models import ScrapedStock
 from ..parsers.overview import OverviewParser
+from ..parsers.profit_loss import ProfitLossParser
 from ..parsers.ratios import RatiosParser
 
 
@@ -23,11 +24,13 @@ class StockDataFetcher:
         *,
         client_factory: Callable[[], MoneyControlClient],
         overview_parser: OverviewParser,
+        profit_loss_parser: ProfitLossParser,
         ratios_parser: RatiosParser,
         error_handler: Optional[ErrorHandler] = None,
     ) -> None:
         self._client_factory = client_factory
         self._overview_parser = overview_parser
+        self._profit_loss_parser = profit_loss_parser
         self._ratios_parser = ratios_parser
         self._error_handler = error_handler or self._default_error_handler
         self._thread_local = threading.local()
@@ -67,12 +70,14 @@ class StockDataFetcher:
             return None
 
         overview_html = client.fetch_overview_html(ticker)
+        profit_loss_html = client.fetch_profit_loss_html(ticker)
         ratios_html = client.fetch_ratios_html(ticker)
 
         overview = self._overview_parser.parse(overview_html)
+        profit_loss = self._profit_loss_parser.parse(profit_loss_html)
         ratios = self._ratios_parser.parse(ratios_html)
 
-        stock = ScrapedStock(ticker=ticker, overview=overview, ratios=ratios)
+        stock = ScrapedStock(ticker=ticker, overview=overview, profit_loss=profit_loss, ratios=ratios)
         return stock.to_record()
 
     def _get_client(self) -> MoneyControlClient:

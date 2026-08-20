@@ -16,6 +16,7 @@ from magic_formula import (
     MagicFormulaDatasetPipeline,
     MoneyControlClient,
     OverviewParser,
+    ProfitLossParser,
     RatiosParser,
     StockDataFetcher,
 )
@@ -38,7 +39,7 @@ VALUATION_REQUIRED_EARNINGS_YIELD = float(os.getenv("MF_VALUATION_REQUIRED_EARNI
 if VALUATION_REQUIRED_EARNINGS_YIELD <= 0:
     raise ValueError("MF_VALUATION_REQUIRED_EARNINGS_YIELD must be greater than zero.")
 DEFAULT_BATCH_SIZE = int(os.getenv("MF_BATCH_SIZE", "100"))
-DEFAULT_MAX_WORKERS = int(os.getenv("MF_MAX_WORKERS", "8"))
+DEFAULT_MAX_WORKERS = int(os.getenv("MF_MAX_WORKERS", "3"))
 DEFAULT_TIMEOUT = float(os.getenv("MF_TIMEOUT", "20"))
 DEFAULT_RETRIES = int(os.getenv("MF_RETRIES", "3"))
 DEFAULT_BACKOFF = float(os.getenv("MF_BACKOFF", "1"))
@@ -81,6 +82,7 @@ def build_fetcher() -> StockDataFetcher:
     return StockDataFetcher(
         client_factory=client_factory,
         overview_parser=OverviewParser(),
+        profit_loss_parser=ProfitLossParser(),
         ratios_parser=RatiosParser(),
     )
 
