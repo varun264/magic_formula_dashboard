@@ -64,7 +64,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ "${GITHUB_EVENT_NAME}" == "push" || "${DATA_MODE}" == "seed" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            python data_pipeline/build_dashboard_data.py --scrape
+            exit 0
+          fi
+
+          if [[ "${DATA_MODE}" == "seed" ]]; then
             python data_pipeline/build_dashboard_data.py
             exit 0
           fi
