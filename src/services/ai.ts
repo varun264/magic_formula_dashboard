@@ -54,7 +54,7 @@ function geminiInit() {
   const key = import.meta.env.VITE_GOOGLE_API_KEY;
   if (!key) return null;
   const genAI = new GoogleGenerativeAI(key);
-  return genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  return genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
 }
 
 async function tryGemini(prompt: string): Promise<string> {
