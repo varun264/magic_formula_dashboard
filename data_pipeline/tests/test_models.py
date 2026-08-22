@@ -1,6 +1,7 @@
 from magic_formula.models import ScrapedStock, TickerInfo
 from magic_formula.parsers.overview import OverviewParser
 from magic_formula.parsers.profit_loss import ProfitLossParser
+from magic_formula.parsers.quarterly_results import QuarterlyResultsParser
 from magic_formula.parsers.ratios import RatiosParser
 
 
@@ -17,6 +18,7 @@ def test_record_derives_magic_formula_columns():
             "Book Value Per Share": "668.04",
         },
         profit_loss={"Annual EBIT (Cr.)": "150,223"},
+        quarter_results={},
         ratios={},
     )
 
@@ -33,7 +35,7 @@ def test_record_derives_magic_formula_columns():
 
 
 def test_record_survives_missing_inputs():
-    stock = ScrapedStock(ticker=_ticker(), overview={}, profit_loss={}, ratios={})
+    stock = ScrapedStock(ticker=_ticker(), overview={}, profit_loss={}, quarter_results={}, ratios={})
 
     record = stock.to_record()
 
@@ -41,11 +43,12 @@ def test_record_survives_missing_inputs():
     assert "Return on Capital Employed (%)" not in record
 
 
-def test_record_merges_live_parser_output(overview_html, profit_loss_html, ratios_html):
+def test_record_merges_live_parser_output(overview_html, profit_loss_html, ratios_html, quarterly_html):
     stock = ScrapedStock(
         ticker=_ticker("Reliance Industries"),
         overview=OverviewParser().parse(overview_html),
         profit_loss=ProfitLossParser().parse(profit_loss_html),
+        quarter_results=QuarterlyResultsParser().parse(quarterly_html),
         ratios=RatiosParser().parse(ratios_html),
     )
 

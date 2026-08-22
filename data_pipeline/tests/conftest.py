@@ -26,3 +26,8 @@ def profit_loss_html() -> str:
 @pytest.fixture(scope="session")
 def ratios_html() -> str:
     return _load("ratios_reliance.html")
+
+
+@pytest.fixture(scope="session")
+def quarterly_html() -> str:
+    return _load("quarterly_reliance.html")

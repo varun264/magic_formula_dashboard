@@ -23,6 +23,7 @@ class ScrapedStock:
     ticker: TickerInfo
     overview: Dict[str, Any]
     profit_loss: Dict[str, Any]
+    quarter_results: Dict[str, Any]
     ratios: Dict[str, Any]
 
     def to_record(self) -> Dict[str, Any]:
@@ -30,6 +31,7 @@ class ScrapedStock:
         record: Dict[str, Any] = dict(self.ticker.raw)
         record.update(self.overview)
         record.update(self.profit_loss)
+        record.update(self.quarter_results)
         record.update(self.ratios)
 
         def numeric(value: Any) -> pd.Series | float:

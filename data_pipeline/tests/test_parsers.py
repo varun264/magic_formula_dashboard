@@ -1,5 +1,6 @@
 from magic_formula.parsers.overview import OverviewParser
 from magic_formula.parsers.profit_loss import ProfitLossParser
+from magic_formula.parsers.quarterly_results import QuarterlyResultsParser
 from magic_formula.parsers.ratios import RatiosParser
 
 
@@ -35,6 +36,14 @@ def test_ratios_whitelists_structured_fields(ratios_html):
     assert not missing, f"RatiosParser lost expected fields: {missing}"
 
     assert _to_float(data["TTM EPS"]) != 0
+
+
+def test_quarterly_extracts_growth_metrics(quarterly_html):
+    data = QuarterlyResultsParser().parse(quarterly_html)
+
+    assert _to_float(data["Latest Quarter Revenue (Cr.)"]) > 0
+    assert "Revenue YoY (%)" in data
+    assert "Latest Quarter Net Profit (Cr.)" in data
 
 
 def test_ratios_never_leaks_peer_names(ratios_html):

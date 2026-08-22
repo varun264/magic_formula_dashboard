@@ -140,6 +140,10 @@ function stockPrompt(stock: {
     const evEbitda = pick("EV/EBITDA (X)");
     const currentRatio = pick("Current Ratio (X)");
     const faceValue = pick("Face Value");
+    const netMargin = pick("Net Profit Margin (%)");
+    const intCoverage = pick("Interest Coverage (X)");
+    const revYoY = pick("Revenue YoY (%)");
+    const npYoY = pick("Net Profit YoY (%)");
 
     const ratios: string[] = [];
     if (pe) ratios.push(`P/E: ${pe.toFixed(2)}`);
@@ -153,10 +157,21 @@ function stockPrompt(stock: {
     if (bvVal) ratios.push(`Book Value: Rs ${bvVal}`);
     if (divPayout) ratios.push(`Div Payout: ${divPayout}%`);
     if (faceValue) ratios.push(`Face Value: Rs ${faceValue}`);
+    if (netMargin) ratios.push(`Net Margin: ${netMargin.toFixed(1)}%`);
+    if (intCoverage) ratios.push(`Int Coverage: ${intCoverage.toFixed(1)}x`);
 
     if (ratios.length > 0) {
       lines.push("Key Financial Ratios:");
       lines.push(ratios.join(" | "));
+      lines.push("");
+    }
+
+    const growth: string[] = [];
+    if (revYoY != null) growth.push(`Revenue YoY ${revYoY.toFixed(1)}%`);
+    if (npYoY != null) growth.push(`Net Profit YoY ${npYoY.toFixed(1)}%`);
+    if (growth.length > 0) {
+      lines.push("Latest Quarter Growth:");
+      lines.push(growth.join(" | "));
       lines.push("");
     }
   }

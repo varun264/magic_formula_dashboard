@@ -17,6 +17,7 @@ from magic_formula import (
     MoneyControlClient,
     OverviewParser,
     ProfitLossParser,
+    QuarterlyResultsParser,
     RatiosParser,
     StockDataFetcher,
 )
@@ -83,6 +84,7 @@ def build_fetcher() -> StockDataFetcher:
         client_factory=client_factory,
         overview_parser=OverviewParser(),
         profit_loss_parser=ProfitLossParser(),
+        quarterly_parser=QuarterlyResultsParser(),
         ratios_parser=RatiosParser(),
     )
 

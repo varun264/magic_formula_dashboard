@@ -148,6 +148,9 @@ class MoneyControlClient:
     def fetch_profit_loss_html(self, ticker: TickerInfo) -> str:
         return self._get_html_with_retry(self._financial_page_url(ticker, "profit-loss"))
 
+    def fetch_quarterly_html(self, ticker: TickerInfo) -> str:
+        return self._get_html_with_retry(self._financial_page_url(ticker, "quarterly-results"))
+
     def fetch_ratios_html(self, ticker: TickerInfo, report: str = "consolidated") -> str:
         path_segment = self.REPORT_PATHS.get(report.lower())
         if path_segment is None:
