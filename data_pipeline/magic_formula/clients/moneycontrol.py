@@ -95,7 +95,7 @@ class MoneyControlClient:
         last_status = 0
         last_body = ""
 
-        for attempt in range(5):
+        for attempt in range(3):
             response = self._session.get(
                 f"{self._base_url}{self.AUTOSUGGEST_PATH}", params=params, timeout=self._timeout
             )
@@ -133,7 +133,7 @@ class MoneyControlClient:
                         raw=dict(candidate),
                     )
 
-            if attempt < 4:
+            if attempt < 2:
                 self._reset_session()
                 time.sleep((2 ** attempt) * 0.5 + random.random())
                 continue
@@ -161,7 +161,7 @@ class MoneyControlClient:
 
     # Helpers -----------------------------------------------------------------
 
-    def _get_html_with_retry(self, url: str, *, attempts: int = 3) -> str:
+    def _get_html_with_retry(self, url: str, *, attempts: int = 2) -> str:
         last_error: Exception | None = None
         for attempt in range(attempts):
             try:
@@ -175,7 +175,7 @@ class MoneyControlClient:
                 last_error = exc
             if attempt < attempts - 1:
                 self._reset_session()
-                time.sleep((2 ** attempt) * 0.5 + random.random())
+                time.sleep(0.5 * (attempt + 1) + random.random())
         raise RuntimeError(f"GET {url} failed after {attempts} attempts: {last_error}")
 
     def _build_session(self, *, max_retries: int, backoff_factor: float) -> requests.Session:

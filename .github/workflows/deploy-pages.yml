@@ -67,6 +67,7 @@ jobs:
       - name: Build dashboard data
         shell: bash
         env:
+          PYTHONUNBUFFERED: "1"
           DATA_MODE: ${{ github.event.inputs.data_mode || github.event.client_payload.data_mode || '' }}
           SYMBOL_OFFSET: ${{ github.event.inputs.symbol_offset || github.event.client_payload.symbol_offset || '0' }}
           SYMBOL_LIMIT: ${{ github.event.inputs.symbol_limit || github.event.client_payload.symbol_limit || '' }}
