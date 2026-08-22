@@ -31,6 +31,7 @@ class RatiosParser:
 
         selected = {
             "TTM EPS": pick("sc_ttm_cons", "SC_TTM"),
+            "Cash EPS (Rs.)": pick("CEPS"),
             "TTM PE": pick("PECONS", "PE"),
             "Book Value [ExclRevalReserve]/Share (Rs.)": pick("BV"),
             "Book Value [InclRevalReserve]/Share (Rs.)": pick("BVCONS"),

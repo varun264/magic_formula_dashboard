@@ -15,11 +15,12 @@ def test_overview_extracts_headline_metrics(overview_html):
     assert _to_float(data["TTM EPS"]) != 0
 
 
-def test_profit_loss_extracts_annual_ebit(profit_loss_html):
+def test_profit_loss_extracts_annual_rows(profit_loss_html):
     data = ProfitLossParser().parse(profit_loss_html)
 
-    assert "Annual EBIT (Cr.)" in data
-    assert _to_float(data["Annual EBIT (Cr.)"]) > 0
+    for key in ["Annual EBIT (Cr.)", "Annual Interest (Cr.)", "Annual Net Profit (Cr.)"]:
+        assert key in data, f"missing {key}"
+        assert _to_float(data[key]) > 0
 
 
 def test_ratios_whitelists_structured_fields(ratios_html):

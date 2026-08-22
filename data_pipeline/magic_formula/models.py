@@ -36,6 +36,9 @@ class ScrapedStock:
             return pd.to_numeric(str(value).replace(",", ""), errors="coerce")
 
         ebit_cr = numeric(record.get("Annual EBIT (Cr.)"))
+        interest_cr = numeric(record.get("Annual Interest (Cr.)"))
+        net_profit_cr = numeric(record.get("Annual Net Profit (Cr.)"))
+        sales_cr = numeric(record.get("Annual Sales (Cr.)"))
         market_cap_cr = numeric(record.get("MKTCAP", record.get("Mkt Cap (Rs. Cr.)")))
         previous_close = numeric(record.get("Previous Close"))
         book_value_per_share = numeric(record.get("Book Value Per Share"))
@@ -45,6 +48,37 @@ class ScrapedStock:
 
         if pd.notna(market_cap_cr):
             record.setdefault("Enterprise Value (Cr.)", market_cap_cr)
+
+        def per_share(value_cr: pd.Series | float) -> pd.Series | float:
+            return (value_cr * previous_close) / market_cap_cr
+
+        if (
+            pd.notna(net_profit_cr)
+            and pd.notna(market_cap_cr)
+            and pd.notna(previous_close)
+            and market_cap_cr > 0
+        ):
+            np_share = per_share(net_profit_cr)
+            record.setdefault("Net Profit/Share (Rs.)", np_share)
+            if pd.notna(sales_cr) and sales_cr > 0:
+                record.setdefault("Net Profit Margin (%)", (net_profit_cr / sales_cr) * 100)
+                record.setdefault("Revenue From Operations/Share (Rs.)", per_share(sales_cr))
+
+        if pd.notna(sales_cr) and pd.notna(market_cap_cr) and pd.notna(previous_close) and market_cap_cr > 0:
+            record.setdefault("Revenue From Operations/Share (Rs.)", per_share(sales_cr))
+
+        if (
+            pd.notna(ebit_cr)
+            and pd.notna(interest_cr)
+            and pd.notna(market_cap_cr)
+            and pd.notna(previous_close)
+            and market_cap_cr > 0
+        ):
+            if interest_cr > 0:
+                record.setdefault("Interest Coverage (X)", ebit_cr / interest_cr)
+            pbt_share = per_share(ebit_cr - interest_cr)
+            if pbt_share == pbt_share:  # NaN guard
+                record.setdefault("PBT/Share (Rs.)", pbt_share)
 
         if (
             pd.notna(ebit_cr)

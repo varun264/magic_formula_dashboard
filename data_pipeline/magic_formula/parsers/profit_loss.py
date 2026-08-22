@@ -5,9 +5,16 @@ from typing import Any, Dict
 
 from bs4 import BeautifulSoup
 
+ROW_FIELDS = {
+    "EBIT": "Annual EBIT (Cr.)",
+    "Interest": "Annual Interest (Cr.)",
+    "Net Profit": "Annual Net Profit (Cr.)",
+    "Sales": "Annual Sales (Cr.)",
+}
+
 
 class ProfitLossParser:
-    """Extract the latest annual EBIT from the Moneycontrol profit-loss page."""
+    """Extract the latest annual P&L rows from the Moneycontrol profit-loss page."""
 
     def parse(self, html: str) -> Dict[str, Any]:
         soup = BeautifulSoup(html, "html.parser")
@@ -19,13 +26,15 @@ class ProfitLossParser:
         performance = payload.get("props", {}).get("pageProps", {}).get("data", {}).get("performance", {})
         annual_sections = performance.get("list", []) if isinstance(performance, dict) else []
 
+        extracted: Dict[str, Any] = {}
         for section in annual_sections:
             if section.get("l1_heading") != "Annual":
                 continue
             for row in section.get("l1_list", []):
-                if row.get("l2_heading") != "EBIT":
+                field = ROW_FIELDS.get(row.get("l2_heading", ""))
+                if field is None or field in extracted:
                     continue
                 values = [item.get("value") for item in row.get("l2_list", []) if item.get("value") not in (None, "")]
                 if values:
-                    return {"Annual EBIT (Cr.)": values[0]}
-        return {}
+                    extracted[field] = values[0]
+        return extracted

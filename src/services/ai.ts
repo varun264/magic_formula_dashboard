@@ -204,7 +204,8 @@ function stockPrompt(stock: {
     "OUTLOOK:",
     "<2-3 sentence outlook for the next 12 months>",
     "",
-    "Be direct and data-driven. Keep reasons and risks to 2-3 bullet points each.");
+    "Be direct and data-driven. Keep reasons and risks to 2-3 bullet points each.",
+    "Use plain '-' hyphens for bullets and no markdown formatting.");
 
   return lines.join("\n");
 }
@@ -276,19 +277,26 @@ export type AnalysisResult = {
 export function parseAnalysis(text: string): AnalysisResult | null {
   if (!text || text.includes("auth error") || text.includes("unavailable") || text.includes("rate-limited") || text.includes("blocked")) return null;
 
+  const normalized = text.replace(/\*\*/g, "").replace(/\r\n?/g, "\n");
+
+  const isBullet = (line: string) => /^\s*(?:[-*•·▪◦–—]|\d+[.)])\s+/.test(line);
+  const bulletText = (line: string) => line.replace(/^\s*(?:[-*•·▪◦–—]|\d+[.)])\s+/, "").trim();
+
   const extractBullets = (section: string): string[] => {
-    const lines: string[] = [];
-    for (const line of section.split("\n")) {
-      const match = line.match(/^\s*[-*]\s+(.+)/);
-      if (match) lines.push(match[1]);
-    }
-    return lines;
+    const lines = section.split("\n").map((l) => l.trim()).filter(Boolean);
+    const items = lines.filter(isBullet).map(bulletText);
+    if (items.length > 0) return items;
+
+    // Fallback: model skipped bullets entirely; use plain lines, skipping headings.
+    return lines
+      .filter((l) => !/^(VERDICT|REASONS?|RISKS?|OUTLOOK)\b/i.test(l))
+      .slice(0, 5);
   };
 
-  const verdictMatch = text.match(/VERDICT:\s*(BUY|SELL|HOLD)/i);
-  const reasonsMatch = text.match(/REASONS:\s*([\s\S]*?)(?=\n\s*(?:RISKS|$))/i);
-  const risksMatch = text.match(/RISKS:\s*([\s\S]*?)(?=\n\s*(?:OUTLOOK|$))/i);
-  const outlookMatch = text.match(/OUTLOOK:\s*([\s\S]*?)$/i);
+  const verdictMatch = normalized.match(/VERDICT:\s*\**\s*(BUY|SELL|HOLD)/i);
+  const reasonsMatch = normalized.match(/REASONS?:\s*([\s\S]*?)(?=\n\s*(?:RISKS?|$))/i);
+  const risksMatch = normalized.match(/RISKS?:\s*([\s\S]*?)(?=\n\s*(?:OUTLOOK|$))/i);
+  const outlookMatch = normalized.match(/OUTLOOK:\s*([\s\S]*?)$/i);
 
   if (!verdictMatch) return null;
 
