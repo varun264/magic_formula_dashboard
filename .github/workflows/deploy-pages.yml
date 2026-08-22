@@ -74,7 +74,11 @@ jobs:
           set -euo pipefail
 
           if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
-            python data_pipeline/build_dashboard_data.py --scrape
+            rm -f .cache/magic_formula/stock_data_master.csv
+            if python data_pipeline/build_dashboard_data.py --scrape; then
+              exit 0
+            fi
+            echo "::warning::Live scrape failed (Moneycontrol likely blocking runner IP); deploying with committed latest.json"
             exit 0
           fi
 

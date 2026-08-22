@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import time
 import warnings
@@ -74,6 +75,10 @@ class MoneyControlClient:
 
         self._session.headers.update(self.DEFAULT_HEADERS)
 
+        proxy_url = os.getenv("MF_PROXY_URL", "").strip()
+        if proxy_url:
+            self._session.proxies.update({"http": proxy_url, "https": proxy_url})
+
         # Prime cookies once so subsequent calls succeed.
         self._prime_session()
 
@@ -87,53 +92,61 @@ class MoneyControlClient:
             "callback": "suggest1",
         }
 
-        for attempt in range(4):
+        last_status = 0
+        last_body = ""
+
+        for attempt in range(5):
             response = self._session.get(
                 f"{self._base_url}{self.AUTOSUGGEST_PATH}", params=params, timeout=self._timeout
             )
+            last_status = response.status_code
+
             if response.status_code in {403, 429, 503}:
-                if attempt < 3:
-                    self._reset_session()
-                    time.sleep((2 ** attempt) + random.random())
-                    continue
-                response.raise_for_status()
+                last_body = response.text[:120]
+            else:
+                payload = self._strip_jsonp(response.text)
+                try:
+                    entries: Iterable[Dict[str, Any]] = json.loads(payload)
+                except json.JSONDecodeError:
+                    # Empty or HTML body usually means bot-blocking; retry with a fresh session.
+                    last_body = response.text[:120]
+                    entries = None
 
-            response.raise_for_status()
+                if entries is not None:
+                    candidate = self._select_candidate(search_text, entries)
+                    if candidate is None:
+                        return None
 
-            payload = self._strip_jsonp(response.text)
-            entries: Iterable[Dict[str, Any]] = json.loads(payload)
+                    stock_id = candidate.get("sc_id", "").strip()
+                    link_src = candidate.get("link_src", "").strip()
 
-            candidate = self._select_candidate(search_text, entries)
-            if candidate is None:
-                return None
+                    url_stock_id = self._extract_stock_id(link_src)
+                    if url_stock_id:
+                        stock_id = url_stock_id
 
-            stock_id = candidate.get("sc_id", "").strip()
-            link_src = candidate.get("link_src", "").strip()
+                    link_src = self._normalise_link(link_src)
 
-            url_stock_id = self._extract_stock_id(link_src)
-            if url_stock_id:
-                stock_id = url_stock_id
+                    return TickerInfo(
+                        stock_id=stock_id,
+                        stock_name=candidate.get("stock_name", search_text),
+                        link_src=link_src,
+                        raw=dict(candidate),
+                    )
 
-            link_src = self._normalise_link(link_src)
+            if attempt < 4:
+                self._reset_session()
+                time.sleep((2 ** attempt) * 0.5 + random.random())
+                continue
 
-            return TickerInfo(
-                stock_id=stock_id,
-                stock_name=candidate.get("stock_name", search_text),
-                link_src=link_src,
-                raw=dict(candidate),
-            )
-
-        raise RuntimeError("Failed to resolve ticker after retries")
+        raise RuntimeError(
+            f"ticker lookup blocked after retries (status={last_status}, body={last_body!r})"
+        )
 
     def fetch_overview_html(self, ticker: TickerInfo) -> str:
-        response = self._session.get(ticker.link_src, timeout=self._timeout)
-        response.raise_for_status()
-        return response.text
+        return self._get_html_with_retry(ticker.link_src)
 
     def fetch_profit_loss_html(self, ticker: TickerInfo) -> str:
-        response = self._session.get(self._financial_page_url(ticker, "profit-loss"), timeout=self._timeout)
-        response.raise_for_status()
-        return response.text
+        return self._get_html_with_retry(self._financial_page_url(ticker, "profit-loss"))
 
     def fetch_ratios_html(self, ticker: TickerInfo, report: str = "consolidated") -> str:
         path_segment = self.REPORT_PATHS.get(report.lower())
@@ -141,14 +154,29 @@ class MoneyControlClient:
             raise ValueError(f"Unsupported report type: {report}")
 
         ratios_url = f"{self._base_url}/financials/{ticker.stock_id}/{path_segment}/{ticker.stock_id}#{ticker.stock_id}"
-        response = self._session.get(ratios_url, timeout=self._timeout)
-        response.raise_for_status()
-        return response.text
+        return self._get_html_with_retry(ratios_url)
 
     def close(self) -> None:
         self._session.close()
 
     # Helpers -----------------------------------------------------------------
+
+    def _get_html_with_retry(self, url: str, *, attempts: int = 3) -> str:
+        last_error: Exception | None = None
+        for attempt in range(attempts):
+            try:
+                response = self._session.get(url, timeout=self._timeout)
+                if response.status_code in {403, 429, 503}:
+                    last_error = RuntimeError(f"blocked (status={response.status_code})")
+                else:
+                    response.raise_for_status()
+                    return response.text
+            except requests.RequestException as exc:
+                last_error = exc
+            if attempt < attempts - 1:
+                self._reset_session()
+                time.sleep((2 ** attempt) * 0.5 + random.random())
+        raise RuntimeError(f"GET {url} failed after {attempts} attempts: {last_error}")
 
     def _build_session(self, *, max_retries: int, backoff_factor: float) -> requests.Session:
         session = requests.Session()
