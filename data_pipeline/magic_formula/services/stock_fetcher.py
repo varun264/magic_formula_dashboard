@@ -69,13 +69,14 @@ class StockDataFetcher:
         if ticker is None:
             return None
 
-        overview_html = client.fetch_overview_html(ticker)
-        profit_loss_html = client.fetch_profit_loss_html(ticker)
-        ratios_html = client.fetch_ratios_html(ticker)
+        with ThreadPoolExecutor(max_workers=3) as pages:
+            overview_future = pages.submit(client.fetch_overview_html, ticker)
+            profit_loss_future = pages.submit(client.fetch_profit_loss_html, ticker)
+            ratios_future = pages.submit(client.fetch_ratios_html, ticker)
 
-        overview = self._overview_parser.parse(overview_html)
-        profit_loss = self._profit_loss_parser.parse(profit_loss_html)
-        ratios = self._ratios_parser.parse(ratios_html)
+            overview = self._overview_parser.parse(overview_future.result())
+            profit_loss = self._profit_loss_parser.parse(profit_loss_future.result())
+            ratios = self._ratios_parser.parse(ratios_future.result())
 
         stock = ScrapedStock(ticker=ticker, overview=overview, profit_loss=profit_loss, ratios=ratios)
         return stock.to_record()
