@@ -90,11 +90,36 @@ def build_fetcher() -> StockDataFetcher:
 def scrape_master_data(symbols: list[str]) -> None:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     writer = CSVWriter(RAW_DATA_FILE, overwrite=True)
-    pipeline = MagicFormulaDatasetPipeline(build_fetcher(), writer)
+    failures: list[tuple[str, str]] = []
+
+    def on_error(symbol: str, error: Exception) -> None:
+        failures.append((symbol, str(error)))
+        print(f"[Error] Failed to process {symbol}: {error}")
+
+    fetcher = build_fetcher()
+    fetcher._error_handler = on_error
+    pipeline = MagicFormulaDatasetPipeline(fetcher, writer)
     pipeline.run(symbols, batch_size=DEFAULT_BATCH_SIZE, max_workers=DEFAULT_MAX_WORKERS)
 
     if not RAW_DATA_FILE.exists():
         raise RuntimeError("Scraper completed without producing a master CSV.")
+
+    scraped_rows = len(pd.read_csv(RAW_DATA_FILE, usecols=["name"]))
+    expected = len(symbols)
+    success_rate = scraped_rows / expected if expected else 0.0
+
+    print(
+        f"[Summary] Scraped {scraped_rows}/{expected} symbols "
+        f"({success_rate:.0%}); {len(failures)} failures."
+    )
+
+    min_success_rate = float(os.getenv("MF_MIN_SUCCESS_RATE", "0.6"))
+    if success_rate < min_success_rate:
+        sample = ", ".join(symbol for symbol, _ in failures[:20])
+        raise RuntimeError(
+            f"Scrape success rate {success_rate:.0%} is below the required "
+            f"{min_success_rate:.0%}. First failures: {sample}"
+        )
 
 
 def ensure_master_data(scrape: bool, *, offset: int, limit: int | None) -> Path:
@@ -232,6 +257,9 @@ def write_dashboard_files(recommendations: pd.DataFrame, *, ranked_count: int, r
             "formula": "intrinsic_value = PBIT/share * (1 - tax_rate) / required_earnings_yield",
             "tax_rate": VALUATION_TAX_RATE,
             "required_earnings_yield": VALUATION_REQUIRED_EARNINGS_YIELD,
+            "pbit_share_method": "Annual EBIT (profit-loss page) * previous_close / market_cap",
+            "enterprise_value_method": "market cap proxy (net debt not subtracted)",
+            "return_on_capital_method": "Annual EBIT / book equity, where book equity = BVPS * market_cap / previous_close",
         },
         "counts": {
             "raw_rows": raw_count,

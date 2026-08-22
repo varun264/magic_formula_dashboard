@@ -3,16 +3,19 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "data:build": "python data_pipeline/build_dashboard_data.py",
     "data:scrape": "python data_pipeline/build_dashboard_data.py --scrape",
+    "test:data": "python -m pytest data_pipeline/tests -q",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },

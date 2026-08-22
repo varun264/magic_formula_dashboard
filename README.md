@@ -1,84 +1,62 @@
 # Magic Formula Dashboard
 
-Automated React + Vite dashboard for monthly Magic Formula stock recommendations.
+Daily-refreshed Magic Formula stock screener for NSE-listed companies with server-side AI stock analysis.
 
-## Local dashboard
+## Architecture
 
-```bash
-npm install
-npm run data:build
-npm run dev
-```
+| Piece | Where | Notes |
+|---|---|---|
+| Frontend | `src/` (React + Vite + TS) | Static site; contains **no API keys** |
+| Data pipeline | `data_pipeline/` (Python) | Scrapes Moneycontrol → ranks Magic Formula → writes `public/data/latest.json` |
+| AI endpoint | `api/ai.ts` (Vercel Edge) | Gemini → Groq → HuggingFace fallback chain, keys stay server-side |
+| Market context | `api/stock-context.ts` (Vercel Edge) | Yahoo Finance price/PE/news with 5-min TTL cache |
 
-Open the local Vite URL and the dashboard will load `public/data/latest.json`.
+**Vercel is the primary deployment** (`https://mf-dashboard-three.vercel.app`) because it hosts the edge functions. GitHub Pages is a static mirror; it points at the Vercel API via `VITE_API_BASE_URL`.
 
-## Refresh data
+AI provider keys live **only** as Vercel project environment variables:
+- `GOOGLE_API_KEY` (or legacy `VITE_GOOGLE_API_KEY`)
+- `GROQ_API_KEY` (or legacy `VITE_GROQ_API_KEY`)
+- `HUGGINGFACE_API_KEY` (or legacy `VITE_HUGGINGFACE_API_KEY`)
 
-Use the bundled seed dataset:
+Set them in Vercel → Project → Settings → Environment Variables.
 
-```bash
-npm run data:build
-```
-
-Scrape fresh Moneycontrol data:
-
-```bash
-python -m pip install -r data_pipeline/requirements.txt
-npm run data:scrape
-```
-
-Generated dashboard assets:
-
-- `public/data/latest.json`
-- `public/data/magic_formula_top50.csv`
-
-Each displayed stock in `latest.json` includes a `details` object with the fetched Moneycontrol fields and computed dashboard metrics. In the dashboard, click a recommendation card or table row to view those fields.
-
-## Intrinsic value estimate
-
-The dashboard displays a simple earnings-power intrinsic value estimate:
-
-```text
-intrinsic_value = PBIT/share * (1 - tax_rate) / required_earnings_yield
-margin_of_safety = intrinsic_value / previous_close - 1
-```
-
-Default assumptions:
-
-- `tax_rate`: `25%`
-- `required_earnings_yield`: `10%`
-
-These can be changed in workflow/environment variables:
-
-- `MF_VALUATION_TAX_RATE`
-- `MF_VALUATION_REQUIRED_EARNINGS_YIELD`
-
-This is a screen-level estimate, not a full DCF.
-
-## GitHub Pages
-
-The workflow in `.github/workflows/deploy-pages.yml`:
-
-- builds seed dashboard data on every push to `main`
-- scrapes fresh Moneycontrol data every day at 00:30 UTC, which is 06:00 IST
-- supports manual runs with `scrape`, `test-scrape`, or `seed` data modes
-- supports `repository_dispatch` events of type `refresh-data`
-- deploys the static dashboard to GitHub Pages
-
-After pushing to GitHub, open **Settings > Pages** and set **Source** to **GitHub Actions**.
-
-Manual test scrape example:
-
-1. Open **Actions > Deploy dashboard to GitHub Pages > Run workflow**.
-2. Set `data_mode` to `test-scrape`.
-3. Set `symbol_limit` to a small number like `50`.
-
-API trigger example:
+## Commands
 
 ```bash
-curl -X POST \
-  -H "Accept: application/vnd.github+json" \
-  -H "Authorization: Bearer YOUR_GITHUB_TOKEN" \
-  https://api.github.com/repos/varun264/magic_formula_dashboard/dispatches \
-  -d '{"event_type":"refresh-data","client_payload":{"data_mode":"scrape"}}'
+npm ci                        # frontend deps
+npm run dev                   # local UI (API calls fail gracefully without vercel dev)
+npm run build                 # typecheck + production build
+npm run lint                  # eslint
+npm run test:data             # python parser/model tests (pytest)
+
+python -m pip install -r data_pipeline/requirements.txt      # pipeline deps
+python -m pip install -r data_pipeline/requirements-dev.txt  # + pytest
+
+npm run data:build            # rebuild rankings from cached/seed CSV
+npm run data:scrape           # full live Moneycontrol scrape (~2000 symbols)
 ```
+
+## Data refresh & deployment
+
+`.github/workflows/deploy-pages.yml` runs on:
+
+- every **push** (full scrape)
+- daily **cron** at 22:30 UTC = 04:00 IST (full scrape)
+- manual `workflow_dispatch` with modes: `scrape`, `test-scrape`, `seed`
+- `repository_dispatch` of type `refresh-data`
+
+Each run: scrape → success-rate gate → build frontend → lint/tests already done → deploy `dist` to **GitHub Pages** and to **Vercel** (`VERCEL_TOKEN` secret).
+
+### Success-rate gate
+
+If fewer than `MF_MIN_SUCCESS_RATE` (default `0.6`) of attempted symbols produce rows, the job fails instead of deploying a gutted dataset. A `[Summary] Scraped X/Y symbols` line always prints.
+
+## Valuation methodology
+
+- **EPV (intrinsic value):** `PBIT/share × (1 − tax_rate) ÷ required_earnings_yield`, defaults 25% and 10% (`MF_VALUATION_TAX_RATE`, `MF_VALUATION_REQUIRED_EARNINGS_YIELD`)
+- **Graham Number:** `√(22.5 × TTM EPS × BVPS)`
+- **PBIT/share:** derived from annual EBIT (profit-loss page) scaled by `previous_close / market_cap`
+- **Enterprise Value:** *market-cap proxy* — net debt is not subtracted
+- **Return on Capital:** EBIT ÷ book equity, where book equity = BVPS × market_cap ÷ previous_close
+
+These are screen-level estimates, not a DCF. Banks/financials often yield NaN PBIT/ROCE and are naturally filtered out by ranking. Current method metadata ships inside `latest.json` under `valuation`.
