@@ -3,8 +3,10 @@ name: Deploy dashboard to GitHub Pages
 on:
   push:
   schedule:
-    # 22:30 UTC = 04:00 IST (India Standard Time, UTC+5:30)
-    - cron: "30 22 * * *"
+    # 12:30 UTC = 18:00 IST — MCP discovery for T+1
+    - cron: "30 12 * * 1-5"
+    # 22:30 UTC = 04:00 IST — price-daily + fundamentals due (Mon-Fri, Sat/Sun disabled)
+    - cron: "30 22 * * 1-5"
   workflow_dispatch:
     inputs:
       data_mode:
@@ -16,6 +18,11 @@ on:
           - scrape
           - test-scrape
           - seed
+          - price-only
+          - fundamentals
+          - from-db
+          - discover
+          - seed-db
       symbol_offset:
         description: "Start scraping from this NSE symbol offset"
         required: false
@@ -71,6 +78,8 @@ jobs:
           DATA_MODE: ${{ github.event.inputs.data_mode || github.event.client_payload.data_mode || '' }}
           SYMBOL_OFFSET: ${{ github.event.inputs.symbol_offset || github.event.client_payload.symbol_offset || '0' }}
           SYMBOL_LIMIT: ${{ github.event.inputs.symbol_limit || github.event.client_payload.symbol_limit || '' }}
+          DATABASE_URL: sqlite:///.cache/central.db
+          MF_FUNDAMENTAL_LAG_DAYS: "1"
         run: |
           set -euo pipefail
 
@@ -93,12 +102,54 @@ jobs:
             exit 0
           fi
 
-          args=(--scrape --symbol-offset "${SYMBOL_OFFSET:-0}")
-          if [[ -n "${SYMBOL_LIMIT}" ]]; then
-            args+=(--symbol-limit "${SYMBOL_LIMIT}")
+          if [[ "${DATA_MODE}" == "price-only" ]]; then
+            python data_pipeline/build_dashboard_data.py --price-only --symbol-offset "${SYMBOL_OFFSET:-0}" --symbol-limit "${SYMBOL_LIMIT:-}"
+            exit 0
+          fi
+          if [[ "${DATA_MODE}" == "fundamentals" ]]; then
+            python data_pipeline/build_dashboard_data.py --fundamentals
+            exit 0
+          fi
+          if [[ "${DATA_MODE}" == "from-db" ]]; then
+            python data_pipeline/build_dashboard_data.py --from-db
+            exit 0
+          fi
+          if [[ "${DATA_MODE}" == "discover" ]]; then
+            python data_pipeline/discover_earnings.py
+            exit 0
+          fi
+          if [[ "${DATA_MODE}" == "seed-db" ]]; then
+            python data_pipeline/seed_db.py
+            python data_pipeline/build_dashboard_data.py --from-db
+            exit 0
           fi
 
-          python data_pipeline/build_dashboard_data.py "${args[@]}"
+          # Scheduled runs: Mon-Fri 12:30 UTC (discover) and 22:30 UTC (price+fundamentals)
+          HOUR_UTC=$(date -u +%H)
+          if [[ "${HOUR_UTC}" == "12" ]]; then
+            echo "[Schedule] 12:30 UTC discover for T+1"
+            python data_pipeline/discover_earnings.py || echo "::warning::discover failed, continuing"
+            # Also run stale fundamentals backfill lightly
+            exit 0
+          fi
+
+          # Default scheduled build (22:30 UTC): price-daily + fundamentals due -> from DB
+          echo "[Schedule] 22:30 UTC price-daily + fundamentals -> DB"
+          # Ensure DB has instruments + seed if empty
+          if [[ ! -f .cache/central.db ]]; then
+            echo "[Init] seeding DB from seed CSV"
+            python data_pipeline/seed_db.py || echo "::warning::seed_db failed"
+          fi
+          python data_pipeline/discover_earnings.py || echo "::warning::discover failed"
+          # Price daily (overview only, ~2000 req vs 8000)
+          if ! python data_pipeline/build_dashboard_data.py --price-only; then
+            echo "::warning::price-only failed, trying fallback from-db"
+          fi
+          # Fundamentals for due symbols (calendar + lag=1 trading day)
+          if ! python data_pipeline/build_dashboard_data.py --fundamentals; then
+            echo "::warning::fundamentals failed"
+          fi
+          python data_pipeline/build_dashboard_data.py --from-db
       - name: Install dependencies
         run: npm ci
       - name: Lint

@@ -65,6 +65,47 @@ class StockDataFetcher:
 
     # Internal ----------------------------------------------------------------
 
+    def fetch_price_many(self, symbols: Sequence[str], max_workers: int = 8) -> pd.DataFrame:
+        if not symbols:
+            return pd.DataFrame()
+        records: List[dict] = []
+        try:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_map = {executor.submit(self._fetch_price_single, symbol): symbol for symbol in symbols}
+                for future in as_completed(future_map):
+                    symbol = future_map[future]
+                    try:
+                        record = future.result()
+                        if record is not None:
+                            records.append(record)
+                    except Exception as exc:
+                        self._error_handler(symbol, exc)
+        finally:
+            self._cleanup_clients()
+        return pd.DataFrame(records)
+
+    def _fetch_price_single(self, symbol: str) -> Optional[dict]:
+        client = self._get_client()
+        ticker = client.get_ticker(symbol)
+        if ticker is None:
+            return None
+        overview_html = client.fetch_overview_html(ticker)
+        ratios_html = client.fetch_ratios_html(ticker)
+        overview = self._overview_parser.parse(overview_html)
+        ratios = self._ratios_parser.parse(ratios_html)
+        stock = ScrapedStock(
+            ticker=ticker,
+            overview=overview,
+            profit_loss={},
+            quarter_results={},
+            ratios=ratios,
+        )
+        rec = stock.to_record()
+        rec["_fetch_mode"] = "price_only"
+        rec["_nse_symbol"] = symbol
+        rec["_sc_id"] = ticker.stock_id
+        return rec
+
     def _fetch_single(self, symbol: str) -> Optional[dict]:
         client = self._get_client()
 
@@ -90,7 +131,11 @@ class StockDataFetcher:
             quarter_results=quarter_results,
             ratios=ratios,
         )
-        return stock.to_record()
+        rec = stock.to_record()
+        rec["_fetch_mode"] = "full"
+        rec["_nse_symbol"] = symbol
+        rec["_sc_id"] = ticker.stock_id
+        return rec
 
     def _get_client(self) -> MoneyControlClient:
         client = getattr(self._thread_local, "client", None)
